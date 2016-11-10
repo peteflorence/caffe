@@ -358,6 +358,8 @@ message LayerParameter {
   // for their implementation. These layers include an Engine type and
   // engine parameter for selecting the implementation.
   // The default for the engine is set by the ENGINE switch at compile-time.
+  //
+  // Next non-BVLC ID: 1000
   optional AccuracyParameter accuracy_param = 102;
   optional ArgMaxParameter argmax_param = 103;
   optional BatchNormParameter batch_norm_param = 139;
@@ -367,6 +369,7 @@ message LayerParameter {
   optional ConvolutionParameter convolution_param = 106;
   optional CropParameter crop_param = 144;
   optional DataParameter data_param = 107;
+  optional DenseCorrespondenceParameter dense_correspondence_param = 1000;
   optional DropoutParameter dropout_param = 108;
   optional DummyDataParameter dummy_data_param = 109;
   optional EltwiseParameter eltwise_param = 110;
@@ -658,6 +661,66 @@ message DataParameter {
   // Prefetch queue (Number of batches to prefetch to host memory, increase if
   // data access bandwidth varies).
   optional uint32 prefetch = 10 [default = 4];
+}
+
+message DenseCorrespondenceParameter {
+
+  optional float focal_length_x = 1 [default = 540.0];
+  optional float focal_length_y = 2 [default = 540.0];
+  optional float principal_point_x = 3 [default = 320.0];
+  optional float principal_point_y = 4 [default = 240.0];
+
+  enum PositiveLoss {
+    L2 = 0;
+    HUBER = 1;
+  }
+  optional PositiveLoss positive_loss = 5 [default = L2];
+  optional float positive_huber_delta = 6 [default = 0.5];
+
+  enum NegativeLoss {
+    HINGE = 0;
+    HUBER_HINGE = 1;
+    NEGATIVE_EXPONENTIAL = 2;
+  }
+  optional NegativeLoss negative_loss = 7 [default = HINGE];
+  optional float negative_huber_delta = 8 [default = 0.5];
+  optional float margin = 9 [default = 1.0];
+  optional float negative_exp_sigma = 10 [default = 100.0];
+
+  enum PositiveSelection {
+    ALL_POSITIVES = 0;
+    RANDOM_POSITIVES = 1;
+  }
+  optional PositiveSelection positive_selection = 11 [default = RANDOM_POSITIVES];
+  optional uint32 positive_samples = 12 [default = 100];
+
+  optional MatchFinding match_finding = 13 [default = RIGID_MATCHING];
+
+  enum NegativeSelection {
+    ALL_NEGATIVES = 0;
+    RANDOM_NEGATIVES = 1;
+    HARD_NEGATIVES = 2;
+  }
+  optional NegativeSelection negative_selection = 14 [default = HARD_NEGATIVES];
+  optional uint32 negative_samples = 15 [default = 4];
+
+  enum LossBalancing {
+    NUM_POSITIVES = 0;
+    TOTAL_SAMPLES = 1;
+    UNIFORM = 2;
+    REWEIGHTED_UNIFORM = 3;
+  }
+  optional LossBalancing loss_balancing = 16 [default = UNIFORM];
+  optional float positive_weight = 17 [default = 1.0];
+  optional float negative_weight = 18 [default = 1.0];
+
+  optional bool enable_matchless = 19 [default = true];
+
+  enum MatchFinding {
+    RIGID_MATCHING = 0;
+    FLANN_MATCHING = 1;
+  }
+
 }
 
 message DropoutParameter {
