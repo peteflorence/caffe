@@ -1442,12 +1442,17 @@ public:
     explicit HuberLossFunctor(const Dtype delta) : delta_(delta) { }
 
     inline Dtype loss(const Dtype * diff, const int channels) {
-        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
-        if (diffL1 < delta_) {
-            return 0.5*caffe_cpu_dot(channels,diff,diff);
-        } else {
-            return delta_*(diffL1 - 0.5*delta_);
+//        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
+//        if (diffL1 < delta_) {
+//            return 0.5*caffe_cpu_dot(channels,diff,diff);
+//        } else {
+//            return delta_*(diffL1 - 0.5*delta_);
+//        }
+        const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
+        if (squaredLoss < delta_*delta_) {
+            return 0.5*squaredLoss;
         }
+        return delta_*(sqrtf(squaredLoss) - 0.5*delta_);
     }
 
     template <template <typename> class AdditionModel>
@@ -1461,23 +1466,44 @@ public:
                                   const int u, const int v,
                                   const Dtype alpha,
                                   Dtype * grad) const {
+
 #ifdef __CUDACC__
-        Dtype diffL1 = 0;
+        Dtype squaredLoss = 0;
         for (int c=0; c<channels; ++c) {
-            diffL1 += fabsf(diff[c]);
+            squaredLoss += diff[c]*diff[c];
         }
 #else
-        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
+        const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
 #endif // __CUDACC__
-        if (diffL1 < delta_) {
+
+        if (squaredLoss < delta_*delta_) {
             for (int c=0; c<channels; ++c) {
                 AdditionModel<Dtype>::add(grad[u + width*(v + height*c)],alpha*diff[c]);
             }
         } else {
+            const Dtype oneOverLoss = Dtype(1)/sqrtf(squaredLoss);
             for (int c=0; c<channels; ++c) {
-                AdditionModel<Dtype>::add(grad[u + width*(v + height*c)], alpha*(diff[c] > 0 ? delta_ : -delta_));
+                AdditionModel<Dtype>::add(grad[u + width*(v + height*c)],alpha*delta_*diff[c]*oneOverLoss);
             }
         }
+
+//#ifdef __CUDACC__
+//        Dtype diffL1 = 0;
+//        for (int c=0; c<channels; ++c) {
+//            diffL1 += fabsf(diff[c]);
+//        }
+//#else
+//        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
+//#endif // __CUDACC__
+//        if (diffL1 < delta_) {
+//            for (int c=0; c<channels; ++c) {
+//                AdditionModel<Dtype>::add(grad[u + width*(v + height*c)],alpha*diff[c]);
+//            }
+//        } else {
+//            for (int c=0; c<channels; ++c) {
+//                AdditionModel<Dtype>::add(grad[u + width*(v + height*c)], alpha*(diff[c] > 0 ? delta_ : -delta_));
+//            }
+//        }
     }
 
     template <template <typename> class AdditionModel>
@@ -1488,23 +1514,42 @@ public:
                                   const int width,
                                   const int height,
                                   const int channels,
-                                  const Dtype u, const Dtype v,
+                                  const Dtype u,
+                                  const Dtype v,
                                   const Dtype alpha,
                                   Dtype * grad) const {
 
-        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
-        if (diffL1 < delta_) {
-            deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
-                                                       u,v,diff,alpha);
-        } else {
-            //std::vector<Dtype> toDeinterpolate(channels);
-            for (int c=0; c<channels; ++c) {
-                //toDeinterpolate[c] = (diff[c] > 0 ? delta_ : -delta_); //std::copysign(delta_,diff[c]);
-                diff[c] = (diff[c] > 0 ? delta_ : -delta_);
-            }
-            deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
-                                                       u,v,diff,alpha);
+#ifdef __CUDACC__
+        Dtype squaredLoss = 0;
+        for (int c=0; c<channels; ++c) {
+            squaredLoss += diff[c]*diff[c];
         }
+#else
+        const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
+#endif // __CUDACC__
+
+        if (squaredLoss <= delta_*delta_) {
+            const Dtype oneOverLoss = Dtype(1)/sqrtf(squaredLoss);
+            for (int c=0; c<channels; ++c) {
+                diff[c] = delta_*diff[c]*oneOverLoss;
+            }
+        }
+        deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
+                                                   u,v,diff,alpha);
+
+//        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
+//        if (diffL1 < delta_) {
+//            deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
+//                                                       u,v,diff,alpha);
+//        } else {
+//            //std::vector<Dtype> toDeinterpolate(channels);
+//            for (int c=0; c<channels; ++c) {
+//                //toDeinterpolate[c] = (diff[c] > 0 ? delta_ : -delta_); //std::copysign(delta_,diff[c]);
+//                diff[c] = (diff[c] > 0 ? delta_ : -delta_);
+//            }
+//            deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
+//                                                       u,v,diff,alpha);
+//        }
 
     }
 
