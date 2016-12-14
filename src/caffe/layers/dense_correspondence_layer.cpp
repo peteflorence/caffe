@@ -200,6 +200,9 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
     case DenseCorrespondenceParameter_PositiveLoss_HUBER:
         return createImplementation(param,width,height,HuberLossFunctor<Dtype>(param.positive_huber_delta()));
         break;
+    case DenseCorrespondenceParameter_PositiveLoss_TUKEY:
+        return createImplementation(param,width,height,TukeyLossFunctor<Dtype>(param.positive_tukey_c()));
+        break;
     }
     return 0;
 

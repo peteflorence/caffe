@@ -1562,6 +1562,96 @@ private:
 };
 
 template <typename Dtype>
+class TukeyLossFunctor {
+public:
+
+    explicit TukeyLossFunctor(const Dtype c) : cSquared_(c*c) { }
+
+    inline Dtype loss(const Dtype * diff, const int channels) {
+
+        const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
+        if (squaredLoss < cSquared_) {
+            return 0.5*squaredLoss;
+        }
+        return cSquared_ / 6;
+
+    }
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void differentiateLoss(const Dtype * diff,
+                                  const int width,
+                                  const int height,
+                                  const int channels,
+                                  const int u, const int v,
+                                  const Dtype alpha,
+                                  Dtype * grad) const {
+
+#ifdef __CUDACC__
+        Dtype squaredLoss = 0;
+        for (int c=0; c<channels; ++c) {
+            squaredLoss += diff[c]*diff[c];
+        }
+#else
+        const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
+#endif // __CUDACC__
+
+        if (squaredLoss < cSquared_) {
+            const Dtype sqrtOfGradientMultiplier = (1 - (squaredLoss / cSquared_));
+            const Dtype gradientMultiplier = sqrtOfGradientMultiplier*sqrtOfGradientMultiplier;
+            for (int c = 0; c < channels; ++c) {
+                AdditionModel<Dtype>::add(grad[u + width*(v + height*c)],alpha*gradientMultiplier*diff[c]);
+            }
+        }
+        // gradient is 0 otherwise
+
+    }
+
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void differentiateLoss(Dtype * diff,
+                                  const int width,
+                                  const int height,
+                                  const int channels,
+                                  const Dtype u,
+                                  const Dtype v,
+                                  const Dtype alpha,
+                                  Dtype * grad) const {
+
+#ifdef __CUDACC__
+        Dtype squaredLoss = 0;
+        for (int c=0; c<channels; ++c) {
+            squaredLoss += diff[c]*diff[c];
+        }
+#else
+        const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
+#endif // __CUDACC__
+
+        if (squaredLoss < cSquared_) {
+            const Dtype sqrtOfGradientMultiplier = (1 - (squaredLoss / cSquared_));
+            const Dtype gradientMultiplier = sqrtOfGradientMultiplier*sqrtOfGradientMultiplier;
+            for (int c = 0; c < channels; ++c) {
+                diff[c] *= gradientMultiplier;
+            }
+            deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
+                                                       u,v,diff,alpha);
+        }
+        // gradient is zero otherwise
+
+    }
+
+private:
+
+    Dtype cSquared_;
+
+};
+
+template <typename Dtype>
 class HingeLossFunctor {
 public:
 

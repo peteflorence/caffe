@@ -101,10 +101,11 @@ void backwardPositiveWrapper(const int N,
 
 template void backwardPositiveWrapper<float, SquaredLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const SquaredLossFunctor<float>,float *, float *);
 template void backwardPositiveWrapper<float, HuberLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const HuberLossFunctor<float>,float *, float *);
-
+template void backwardPositiveWrapper<float, TukeyLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const TukeyLossFunctor<float>,float *, float *);
 
 template void backwardPositiveWrapper<double, SquaredLossFunctor>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const SquaredLossFunctor<double>,double *, double *);
 template void backwardPositiveWrapper<double, HuberLossFunctor>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const HuberLossFunctor<double>,double *, double *);
+template void backwardPositiveWrapper<double, TukeyLossFunctor>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const TukeyLossFunctor<double>,double *, double *);
 
 
 template <typename Dtype,
