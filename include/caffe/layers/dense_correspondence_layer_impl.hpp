@@ -1769,18 +1769,20 @@ public:
 #endif // __CUDACC__
         const Dtype dist = std::sqrt(distSquared);
         const Dtype mdist = margin_ - dist;
-        const Dtype beta = -alpha * mdist / (dist + Dtype(1e-4));
 
         if (mdist > Dtype(0)) {
+
+            Dtype beta;
             if (mdist < delta_) {
-                for (int c=0; c<channels; ++c) {
-                    AdditionModel<Dtype>::add(grad[u + width*(v + height*c)], beta*diff[c]);
-                }
+                beta = -alpha * mdist / (dist + Dtype(1e-5));
             } else {
-                for (int c=0; c<channels; ++c) {
-                    AdditionModel<Dtype>::add(grad[u + width*(v + height*c)], beta*(diff[c] > 0 ? delta_ : -delta_));//std::copysign(delta_,diff[c]);
-                }
+                beta = -alpha * delta_ / (dist + Dtype(1e-5));
             }
+
+            for (int c=0; c<channels; ++c) {
+                AdditionModel<Dtype>::add(grad[u + width*(v + height*c)], beta*diff[c]);
+            }
+
         }
     }
 
@@ -1805,14 +1807,16 @@ public:
 #endif // __CUDACC__
         const Dtype dist = std::sqrt(distSquared);
         const Dtype mdist = margin_ - dist;
-        const Dtype beta = -alpha * mdist / (dist + Dtype(1e-4));
 
         if (mdist > Dtype(0)) {
-            if (mdist > delta_) {
-                for (int c=0; c<channels; ++c) {
-                    diff[c] = (diff[c] > 0 ? delta_ : -delta_);
-                }
+
+            Dtype beta;
+            if (mdist < delta_) {
+                beta = -alpha * mdist / (dist + Dtype(1e-5));
+            } else {
+                beta = -alpha * delta_ / (dist + Dtype(1e-5));
             }
+
             deInterpolateGradient<Dtype,AdditionModel>(grad,width,height,channels,
                                                        u,v,diff,beta);
         }
