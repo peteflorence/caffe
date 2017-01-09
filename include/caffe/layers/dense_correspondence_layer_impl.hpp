@@ -639,6 +639,61 @@ private:
 
 };
 
+template <typename Dtype>
+class RandomMatchFinder {
+public:
+
+    static const bool NeedsLocalRefinement = false;
+    static const bool EnablesMatchless = false;
+
+    explicit RandomMatchFinder(const Dtype * vertMap, const int width, const int height)
+        : vertMap_(vertMap), width_(width), height_(height) { }
+
+    inline bool findMatch(const Dtype ptA[3],
+                          Dtype & uB,
+                          Dtype & vB) {
+
+        boost::uniform_int<> uDistribution(0,width_-1);
+        boost::uniform_int<> vDistribution(0,height_-1);
+
+        Dtype ptB[3];
+
+        for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+
+            int uBi = uDistribution(*caffe_rng());
+            int vBi = vDistribution(*caffe_rng());
+
+            ptB[0] = vertMap_[uBi + width_*vBi];
+            ptB[1] = vertMap_[uBi + width_*vBi + width_*height_];
+            ptB[2] = vertMap_[uBi + width_*vBi + 2*width_*height_];
+
+            const Dtype distSquared = (ptA[0]-ptB[0]) * (ptA[0]-ptB[0]) *
+                                      (ptA[1]-ptB[1]) * (ptA[1]-ptB[1]) *
+                                      (ptA[2]-ptB[2]) * (ptA[2]-ptB[2]);
+
+            if (distSquared < matchThresholdSquared) {
+                uB = uBi;
+                vB = vBi;
+                return true;
+            }
+
+        }
+
+        return false;
+
+    }
+
+private:
+
+    const Dtype * vertMap_;
+    const int width_, height_;
+
+    static const int maxAttempts = 25;
+    static const Dtype matchThreshold = 0.005;
+    static const Dtype matchThresholdSquared = 0.000025;
+
+};
+
 template <typename Dtype,
           template <typename> class MatchFinderT>
 inline bool checkForMatch(const int uA, const int vA,
@@ -1993,18 +2048,6 @@ struct Type2Type {
     typedef T OriginalType;
 };
 
-//template <typename Dtype,
-//          template <typename> class MatchFinderT>
-//inline MatchFinderT<Dtype> * makeMatchFinder(const Dtype * vertsB,
-//                                             const int width,
-//                                             const int height,
-//                                             const TransformationMatrix<Dtype> & transformationGlobalToB,
-//                                             const Dtype focalLengthX,
-//                                             const Dtype focalLengthY,
-//                                             const Dtype principalPointX,
-//                                             const Dtype principalPointY,
-//                                             Type2Type<MatchFinderT> tag);
-
 template <typename Dtype>
 inline RigidMatchFinder<Dtype> * makeMatchFinder(const Dtype * /*vertsB*/,
                                                  const int /*width*/,
@@ -2033,6 +2076,21 @@ inline FLANNMatchFinder<Dtype> * makeMatchFinder(const Dtype * vertsB,
                                                  Type2Type<FLANNMatchFinder<Dtype> > /*tag*/) {
 
     return new FLANNMatchFinder<Dtype>(vertsB,width,height);
+
+}
+
+template <typename Dtype>
+inline RandomMatchFinder<Dtype> * makeMatchFinder(const Dtype * vertsB,
+                                                  const int width,
+                                                  const int height,
+                                                  const TransformationMatrix<Dtype> & /*transformationGlobalToB*/,
+                                                  const Dtype /*focalLengthX*/,
+                                                  const Dtype /*focalLengthY*/,
+                                                  const Dtype /*principalPointX*/,
+                                                  const Dtype /*principalPointY*/,
+                                                  Type2Type<RandomMatchFinder<Dtype> >/*tag*/) {
+
+    return new RandomMatchFinder<Dtype>(vertsB,width,height);
 
 }
 

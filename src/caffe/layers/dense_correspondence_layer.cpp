@@ -8,25 +8,6 @@
 namespace caffe {
 
 // -=-=-=- creation code -=-=-=-
-//template <typename Dtype,
-//          template <typename> class MatchFinderT,
-//          template <typename> class PositiveLossFunctorT,
-//          template <typename> class NegativeLossFunctorT,
-//          template <typename> class PositiveMatchSelectorT,
-//          template <typename> class NegativeMatchSelectorT,
-//          template <typename> class LossBalancingFunctorT>
-//inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-//                                                                      const int width, const int height,
-//                                                                      PositiveLossFunctorT<Dtype> posLossFunctor,
-//                                                                      NegativeLossFunctorT<Dtype> negLossFunctor,
-//                                                                      PositiveMatchSelectorT<Dtype> positiveSelector,
-//                                                                      NegativeMatchSelectorT<Dtype> negativeSelector,
-//                                                                      LossBalancingFunctorT<Dtype> lossBalancingFunctor) {
-
-
-
-//}
-
 template <typename Dtype,
           template <typename> class PositiveLossFunctorT,
           template <typename> class NegativeLossFunctorT,
@@ -62,6 +43,23 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
     case DenseCorrespondenceParameter_MatchFinding_FLANN_MATCHING:
         return new DenseCorrespondenceLayerImpl<Dtype,
                                                 FLANNMatchFinder,
+                                                PositiveMatchSelectorT,
+                                                PositiveLossFunctorT,
+                                                NegativeMatchSelectorT,
+                                                NegativeLossFunctorT,
+                                                LossBalancingFunctorT>(positiveSelector,
+                                                                       posLossFunctor,
+                                                                       negativeSelector,
+                                                                       negLossFunctor,
+                                                                       lossBalancingFunctor,
+                                                                       param.focal_length_x(),
+                                                                       param.focal_length_y(),
+                                                                       param.principal_point_x(),
+                                                                       param.principal_point_y(),
+                                                                       param.enable_matchless());
+    case DenseCorrespondenceParameter_MatchFinding_RANDOM_MATCHING:
+        return new DenseCorrespondenceLayerImpl<Dtype,
+                                                RandomMatchFinder,
                                                 PositiveMatchSelectorT,
                                                 PositiveLossFunctorT,
                                                 NegativeMatchSelectorT,
