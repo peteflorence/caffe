@@ -3,7 +3,8 @@
 namespace caffe {
 
 template <typename Dtype,
-          template <typename> class LossFunctorT>
+          template <typename> class LossFunctorT,
+          template <typename> class PixelwiseWeightingT>
 __global__ void DCLBackwardPositives(const int N,
                                      const int width,
                                      const int height,
@@ -13,6 +14,7 @@ __global__ void DCLBackwardPositives(const int N,
                                      const Dtype * posSampleBData,
                                      const Dtype posAlpha,
                                      const LossFunctorT<Dtype> lossFunctor,
+                                     PixelwiseWeightingT<Dtype> weighting,
                                      Dtype * gradA,
                                      Dtype * gradB) {
 
@@ -25,11 +27,19 @@ __global__ void DCLBackwardPositives(const int N,
 
         const Dtype * thisDiff = posDiffData + i*channels;
 
-        lossFunctor.template differentiateLoss<CudaAtomicAddition>(thisDiff,width,height,channels,
-                                                                   uA,vA,posAlpha,gradA);
+        const Dtype weightA = weighting.weightA(uA,vA);
+        const Dtype weightB = weighting.weightB(uB,vB);
+        const Dtype thisAlpha = weightA*weightB*posAlpha;
 
         lossFunctor.template differentiateLoss<CudaAtomicAddition>(thisDiff,width,height,channels,
-                                                                   uB,vB,-posAlpha,gradB);
+                                                                   uA,vA, thisAlpha,gradA);
+
+        lossFunctor.template differentiateLoss<CudaAtomicAddition>(thisDiff,width,height,channels,
+                                                                   uB,vB,-thisAlpha,gradB);
+
+        weighting.template backpropWeightA<CudaAtomicAddition>(uA,vA,weightB*lossFunctor.loss(thisDiff,channels));
+
+        weighting.template backpropWeightB<CudaAtomicAddition>(uB,vB,weightA*lossFunctor.loss(thisDiff,channels));
 
     }
 
@@ -77,7 +87,8 @@ __global__ void DCLBackwardNegatives(const int N,
 //template __global__ void DCLBackwardNegatives<float, NegativeExponentialLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const NegativeExponentialLossFunctor<float>,float *, float *);
 
 template <typename Dtype,
-          template <typename> class LossFunctorT>
+          template <typename> class LossFunctorT,
+          template <typename> class PixelwiseWeightingT>
 void backwardPositiveWrapper(const int N,
                              const int width,
                              const int height,
@@ -88,24 +99,34 @@ void backwardPositiveWrapper(const int N,
                              const Dtype posAlpha,
                              const LossFunctorT<Dtype> lossFunctor,
                              Dtype * gradA,
-                             Dtype * gradB) {
+                             Dtype * gradB,
+                             PixelwiseWeightingT<Dtype> weighting) {
 
     if (N == 0) { return; }
 
     DCLBackwardPositives<<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
         N, width, height, channels, posDiffData, posSampleAData, posSampleBData,
-        posAlpha, lossFunctor, gradA, gradB);
+        posAlpha, lossFunctor, weighting, gradA, gradB);
     CUDA_POST_KERNEL_CHECK;
 
 }
 
-template void backwardPositiveWrapper<float, SquaredLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const SquaredLossFunctor<float>,float *, float *);
-template void backwardPositiveWrapper<float, HuberLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const HuberLossFunctor<float>,float *, float *);
-template void backwardPositiveWrapper<float, TukeyLossFunctor>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const TukeyLossFunctor<float>,float *, float *);
+template void backwardPositiveWrapper<float, SquaredLossFunctor,NoWeighting>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const SquaredLossFunctor<float>,float *, float *, NoWeighting<float>);
+//template void backwardPositiveWrapper<float, HuberLossFunctor,NoWeighting>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const HuberLossFunctor<float>,float *, float *, NoWeighting<float>);
+//template void backwardPositiveWrapper<float, TukeyLossFunctor,NoWeighting>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const TukeyLossFunctor<float>,float *, float *, NoWeighting<float>);
 
-template void backwardPositiveWrapper<double, SquaredLossFunctor>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const SquaredLossFunctor<double>,double *, double *);
-template void backwardPositiveWrapper<double, HuberLossFunctor>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const HuberLossFunctor<double>,double *, double *);
-template void backwardPositiveWrapper<double, TukeyLossFunctor>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const TukeyLossFunctor<double>,double *, double *);
+template void backwardPositiveWrapper<double, SquaredLossFunctor,NoWeighting>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const SquaredLossFunctor<double>,double *, double *, NoWeighting<double>);
+//template void backwardPositiveWrapper<double, HuberLossFunctor,NoWeighting>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const HuberLossFunctor<double>,double *, double *, NoWeighting<double>);
+//template void backwardPositiveWrapper<double, TukeyLossFunctor,NoWeighting>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const TukeyLossFunctor<double>,double *, double *, NoWeighting<double>);
+
+
+template void backwardPositiveWrapper<float, SquaredLossFunctor,InputWeighting>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const SquaredLossFunctor<float>,float *, float *, InputWeighting<float>);
+//template void backwardPositiveWrapper<float, HuberLossFunctor,InputWeighting>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const HuberLossFunctor<float>,float *, float *, InputWeighting<float>);
+//template void backwardPositiveWrapper<float, TukeyLossFunctor,InputWeighting>(const int, const int, const int, const int, const float *, const float *, const float *, const float, const TukeyLossFunctor<float>,float *, float *, InputWeighting<float>);
+
+template void backwardPositiveWrapper<double, SquaredLossFunctor,InputWeighting>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const SquaredLossFunctor<double>,double *, double *, InputWeighting<double>);
+//template void backwardPositiveWrapper<double, HuberLossFunctor,InputWeighting>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const HuberLossFunctor<double>,double *, double *, InputWeighting<double>);
+//template void backwardPositiveWrapper<double, TukeyLossFunctor,InputWeighting>(const int, const int, const int, const int, const double *, const double *, const double *, const double, const TukeyLossFunctor<double>,double *, double *, InputWeighting<double>);
 
 
 template <typename Dtype,
@@ -124,7 +145,7 @@ void backwardNegativeWrapper(const int N,
 
     if (N == 0) { return; }
 
-    DCLBackwardPositives<<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
+    DCLBackwardNegatives<<<CAFFE_GET_BLOCKS(N), CAFFE_CUDA_NUM_THREADS>>>(
         N, width, height, channels, negDiffData, negSampleAData, negSampleBData,
         negAlpha, lossFunctor, gradA, gradB);
     CUDA_POST_KERNEL_CHECK;

@@ -1451,8 +1451,19 @@ template <typename Dtype>
 class SquaredLossFunctor {
 public:
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline Dtype loss(const Dtype * diff, const int channels) const {
+#ifdef __CUDACC__
+        Dtype loss(0);
+        for (int c = 0; c < channels; ++c) {
+            loss += diff[c]*diff[c];
+        }
+        return 0.5 * loss;
+#else
         return 0.5*caffe_cpu_dot(channels,diff,diff);
+#endif // __CUDACC__
     }
 
     template <template <typename> class AdditionModel>
@@ -1496,7 +1507,7 @@ public:
 
     explicit HuberLossFunctor(const Dtype delta) : delta_(delta) { }
 
-    inline Dtype loss(const Dtype * diff, const int channels) {
+    inline Dtype loss(const Dtype * diff, const int channels) const {
 //        const Dtype diffL1 = caffe_cpu_asum(channels,diff);
 //        if (diffL1 < delta_) {
 //            return 0.5*caffe_cpu_dot(channels,diff,diff);
@@ -1622,7 +1633,7 @@ public:
 
     explicit TukeyLossFunctor(const Dtype c) : cSquared_(c*c) { }
 
-    inline Dtype loss(const Dtype * diff, const int channels) {
+    inline Dtype loss(const Dtype * diff, const int channels) const {
 
         const Dtype squaredLoss = caffe_cpu_dot(channels,diff,diff);
         if (squaredLoss < cSquared_) {
@@ -2050,18 +2061,30 @@ public:
                        const int /*pair*/, bool /*gpu*/ = false,
                        bool /*doDiff*/ = false) { }
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline Dtype weightA(const int /*x*/, const int /*y*/) const {
         return Dtype(1);
     }
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline Dtype weightB(const Dtype /*x*/, const Dtype /*y*/) const {
         return Dtype(1);
     }
 
     template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline void backpropWeightA(const int /*x*/, const int /*y*/, const Dtype /*topDiff*/) { }
 
     template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline void backpropWeightB(const Dtype /*x*/, const Dtype /*y*/, const Dtype /*topDiff*/) { }
 
 };
@@ -2079,12 +2102,18 @@ public:
           diffWeightsB_(doDiff ? (gpu ? bottom[6]->mutable_gpu_data() : bottom[6]->mutable_cpu_data() ) : 0),
           width_(bottom[5]->width()) { }
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline Dtype weightA(const int x, const int y) const {
 
         return weightsA_[x + width_*y];
 
     }
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline Dtype weightB(const Dtype x, const Dtype y) const {
 
         const int baseX = x;
@@ -2196,7 +2225,8 @@ inline RandomMatchFinder<Dtype> * makeMatchFinder(const Dtype * vertsB,
 }
 
 template <typename Dtype,
-          template <typename> class LossFunctorT>
+          template <typename> class LossFunctorT,
+          template <typename> class PixelwiseWeightingT>
 void backwardPositiveWrapper(const int N,
                              const int width,
                              const int height,
@@ -2207,7 +2237,8 @@ void backwardPositiveWrapper(const int N,
                              const Dtype posAlpha,
                              const LossFunctorT<Dtype> lossFunctor,
                              Dtype * gradA,
-                             Dtype * gradB);
+                             Dtype * gradB,
+                             PixelwiseWeightingT<Dtype> weighting);
 
 
 template <typename Dtype,
@@ -2635,14 +2666,16 @@ public:
             Dtype * diffA = bottom[0]->mutable_gpu_diff() + pair*bottom[0]->count(1);
             Dtype * diffB = bottom[1]->mutable_gpu_diff() + pair*bottom[1]->count(1);
 
+            PixelwiseWeightingT<Dtype> pixelwiseWeighting(bottom,pair,true,true);
+
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             std::cout << "positives" << std::endl;
             const int posN = nSuccessfulPositiveSamples_[pair];
 
-            backwardPositiveWrapper<Dtype,PositiveLossFunctorT>(
+            backwardPositiveWrapper<Dtype,PositiveLossFunctorT,PixelwiseWeightingT>(
                         posN,width,height,channels,posDiffData,posSampleAData,posSampleBData,
-                        posAlpha,posLossFunctor_,diffA,diffB);
+                        posAlpha,posLossFunctor_,diffA,diffB,pixelwiseWeighting);
 
 
             std::cout << "negatives (" << nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
