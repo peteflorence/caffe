@@ -2047,7 +2047,8 @@ class NoWeighting {
 public:
 
     inline NoWeighting(const std::vector<Blob<Dtype> *> & /*bottom*/,
-                       const int /*pair*/, bool /*doDiff*/ = false) { }
+                       const int /*pair*/, bool /*gpu*/ = false,
+                       bool /*doDiff*/ = false) { }
 
     inline Dtype weightA(const int /*x*/, const int /*y*/) const {
         return Dtype(1);
@@ -2057,8 +2058,10 @@ public:
         return Dtype(1);
     }
 
+    template <template <typename> class AdditionModel>
     inline void backpropWeightA(const int /*x*/, const int /*y*/, const Dtype /*topDiff*/) { }
 
+    template <template <typename> class AdditionModel>
     inline void backpropWeightB(const Dtype /*x*/, const Dtype /*y*/, const Dtype /*topDiff*/) { }
 
 };
@@ -2068,11 +2071,12 @@ class InputWeighting {
 public:
 
     inline InputWeighting(const std::vector<Blob<Dtype> *> & bottom,
-                          const int pair, bool doDiff = false)
-        : weightsA_(bottom[5]->cpu_data() + pair*bottom[5]->count(1)),
-          weightsB_(bottom[6]->cpu_data() + pair*bottom[6]->count(1)),
-          diffWeightsA_(doDiff ? bottom[5]->mutable_cpu_data() : 0),
-          diffWeightsB_(doDiff ? bottom[6]->mutable_cpu_data() : 0),
+                          const int pair, bool doDiff = false,
+                          bool gpu = false)
+        : weightsA_((gpu ? bottom[5]->gpu_data() : bottom[5]->cpu_data()) + pair*bottom[5]->count(1)),
+          weightsB_((gpu ? bottom[6]->gpu_data() : bottom[6]->cpu_data()) + pair*bottom[6]->count(1)),
+          diffWeightsA_(doDiff ? (gpu ? bottom[5]->mutable_gpu_data() : bottom[5]->mutable_cpu_data() ) : 0),
+          diffWeightsB_(doDiff ? (gpu ? bottom[6]->mutable_gpu_data() : bottom[6]->mutable_cpu_data() ) : 0),
           width_(bottom[5]->width()) { }
 
     inline Dtype weightA(const int x, const int y) const {
@@ -2095,12 +2099,20 @@ public:
 
     }
 
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline void backpropWeightA(const int x, const int y, const Dtype topDiff) {
 
-        diffWeightsA_[x + width_*y] += topDiff;
+        AdditionModel<Dtype>::add(diffWeightsA_[x + width_*y], topDiff);
 
     }
 
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline void backpropWeightB(const Dtype x, const Dtype y, const Dtype topDiff) {
 
         const int baseX = x;
@@ -2108,10 +2120,10 @@ public:
         const Dtype offX = x - baseX;
         const Dtype offY = y - baseY;
 
-        diffWeightsB_[( baseX ) + width_*( baseY )] += (1-offX)*(1-offY)*topDiff;
-        diffWeightsB_[( baseX ) + width_*(baseY+1)] += (1-offX)*( offY )*topDiff;
-        diffWeightsB_[(baseX+1) + width_*( baseY )] += ( offX )*(1-offY)*topDiff;
-        diffWeightsB_[(baseX+1) + width_*(baseY+1)] += ( offX )*( offY )*topDiff;
+        AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*( baseY )], (1-offX)*(1-offY)*topDiff);
+        AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*(baseY+1)], (1-offX)*( offY )*topDiff);
+        AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*( baseY )], ( offX )*(1-offY)*topDiff);
+        AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*(baseY+1)], ( offX )*( offY )*topDiff);
 
     }
 
@@ -2563,8 +2575,8 @@ public:
                 posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
                                                                                    uB,vB,-thisAlpha,diffB);
 
-                pixelwiseWeighting.backpropWeightA(uA,vA,weightB*posLossFunctor_.loss(thisDiff,repChannels));
-                pixelwiseWeighting.backpropWeightB(uB,vB,weightA*posLossFunctor_.loss(thisDiff,repChannels));
+                pixelwiseWeighting.template backpropWeightA<SingleThreadedAddition>(uA,vA,weightB*posLossFunctor_.loss(thisDiff,repChannels));
+                pixelwiseWeighting.template backpropWeightB<SingleThreadedAddition>(uB,vB,weightA*posLossFunctor_.loss(thisDiff,repChannels));
 
             }
 
