@@ -22,58 +22,82 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
                                                                       NegativeMatchSelectorT<Dtype> negativeSelector,
                                                                       LossBalancingFunctorT<Dtype> lossBalancingFunctor) {
 
+#define MATCH_FINDING_CASE(protoName,matchFinder) \
+    case DenseCorrespondenceParameter_MatchFinding_##protoName: \
+        return new DenseCorrespondenceLayerImpl<Dtype, \
+                                                matchFinder, \
+                                                PositiveMatchSelectorT, \
+                                                PositiveLossFunctorT, \
+                                                NegativeMatchSelectorT, \
+                                                NegativeLossFunctorT, \
+                                                LossBalancingFunctorT>(positiveSelector, \
+                                                                       posLossFunctor, \
+                                                                       negativeSelector, \
+                                                                       negLossFunctor, \
+                                                                       lossBalancingFunctor, \
+                                                                       param.focal_length_x(), \
+                                                                       param.focal_length_y(), \
+                                                                       param.principal_point_x(), \
+                                                                       param.principal_point_y(), \
+                                                                       param.enable_matchless())
+
     switch (param.match_finding()) {
-    case DenseCorrespondenceParameter_MatchFinding_RIGID_MATCHING:
-        return new DenseCorrespondenceLayerImpl<Dtype,
-                                                RigidMatchFinder,
-                                                PositiveMatchSelectorT,
-                                                PositiveLossFunctorT,
-                                                NegativeMatchSelectorT,
-                                                NegativeLossFunctorT,
-                                                LossBalancingFunctorT>(positiveSelector,
-                                                                       posLossFunctor,
-                                                                       negativeSelector,
-                                                                       negLossFunctor,
-                                                                       lossBalancingFunctor,
-                                                                       param.focal_length_x(),
-                                                                       param.focal_length_y(),
-                                                                       param.principal_point_x(),
-                                                                       param.principal_point_y(),
-                                                                       param.enable_matchless());
-    case DenseCorrespondenceParameter_MatchFinding_FLANN_MATCHING:
-        return new DenseCorrespondenceLayerImpl<Dtype,
-                                                FLANNMatchFinder,
-                                                PositiveMatchSelectorT,
-                                                PositiveLossFunctorT,
-                                                NegativeMatchSelectorT,
-                                                NegativeLossFunctorT,
-                                                LossBalancingFunctorT>(positiveSelector,
-                                                                       posLossFunctor,
-                                                                       negativeSelector,
-                                                                       negLossFunctor,
-                                                                       lossBalancingFunctor,
-                                                                       param.focal_length_x(),
-                                                                       param.focal_length_y(),
-                                                                       param.principal_point_x(),
-                                                                       param.principal_point_y(),
-                                                                       param.enable_matchless());
-    case DenseCorrespondenceParameter_MatchFinding_RANDOM_MATCHING:
-        return new DenseCorrespondenceLayerImpl<Dtype,
-                                                RandomMatchFinder,
-                                                PositiveMatchSelectorT,
-                                                PositiveLossFunctorT,
-                                                NegativeMatchSelectorT,
-                                                NegativeLossFunctorT,
-                                                LossBalancingFunctorT>(positiveSelector,
-                                                                       posLossFunctor,
-                                                                       negativeSelector,
-                                                                       negLossFunctor,
-                                                                       lossBalancingFunctor,
-                                                                       param.focal_length_x(),
-                                                                       param.focal_length_y(),
-                                                                       param.principal_point_x(),
-                                                                       param.principal_point_y(),
-                                                                       param.enable_matchless());
+
+        MATCH_FINDING_CASE(RIGID_MATCHING,RigidMatchFinder);
+        MATCH_FINDING_CASE(FLANN_MATCHING,FLANNMatchFinder);
+        MATCH_FINDING_CASE(RANDOM_MATCHING,RandomMatchFinder);
+
+//    case DenseCorrespondenceParameter_MatchFinding_RIGID_MATCHING:
+//        return new DenseCorrespondenceLayerImpl<Dtype,
+//                                                RigidMatchFinder,
+//                                                PositiveMatchSelectorT,
+//                                                PositiveLossFunctorT,
+//                                                NegativeMatchSelectorT,
+//                                                NegativeLossFunctorT,
+//                                                LossBalancingFunctorT>(positiveSelector,
+//                                                                       posLossFunctor,
+//                                                                       negativeSelector,
+//                                                                       negLossFunctor,
+//                                                                       lossBalancingFunctor,
+//                                                                       param.focal_length_x(),
+//                                                                       param.focal_length_y(),
+//                                                                       param.principal_point_x(),
+//                                                                       param.principal_point_y(),
+//                                                                       param.enable_matchless());
+//    case DenseCorrespondenceParameter_MatchFinding_FLANN_MATCHING:
+//        return new DenseCorrespondenceLayerImpl<Dtype,
+//                                                FLANNMatchFinder,
+//                                                PositiveMatchSelectorT,
+//                                                PositiveLossFunctorT,
+//                                                NegativeMatchSelectorT,
+//                                                NegativeLossFunctorT,
+//                                                LossBalancingFunctorT>(positiveSelector,
+//                                                                       posLossFunctor,
+//                                                                       negativeSelector,
+//                                                                       negLossFunctor,
+//                                                                       lossBalancingFunctor,
+//                                                                       param.focal_length_x(),
+//                                                                       param.focal_length_y(),
+//                                                                       param.principal_point_x(),
+//                                                                       param.principal_point_y(),
+//                                                                       param.enable_matchless());
+//    case DenseCorrespondenceParameter_MatchFinding_RANDOM_MATCHING:
+//        return new DenseCorrespondenceLayerImpl<Dtype,
+//                                                RandomMatchFinder,
+//                                                PositiveMatchSelectorT,
+//                                                PositiveLossFunctorT,
+//                                                NegativeMatchSelectorT,
+//                                                NegativeLossFunctorT,
+//                                                LossBalancingFunctorT>(positiveSelector,
+//                                                                       posLossFunctor,
+//                                                                       negativeSelector,
+//                                                                       negLossFunctor,
+//                                                                       lossBalancingFunctor,
+//                                                                       param.focal_length_x(),
+//                                                                       param.focal_length_y(),
+//                                                                       param.principal_point_x(),
+//                                                                       param.principal_point_y(),
+//                                                                       param.enable_matchless());
     }
 
     return 0;
@@ -90,23 +114,38 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor,
                                                                       PositiveMatchSelectorT<Dtype> positiveSelector,
                                                                       NegativeMatchSelectorT<Dtype> negativeSelector) {
+
+#define LOSS_BALANCING_CASE(protoName,instantiation) \
+    case DenseCorrespondenceParameter_LossBalancing_##protoName: \
+        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector, \
+                                    instantiation); \
+        break
+
     switch(param.loss_balancing()) {
-    case DenseCorrespondenceParameter_LossBalancing_NUM_POSITIVES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
-                                    NormalizeByNumPositivesFunctor<Dtype>());
-        break;
-    case DenseCorrespondenceParameter_LossBalancing_TOTAL_SAMPLES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
-                                    NormalizeTotalFunctor<Dtype>());
-        break;
-    case DenseCorrespondenceParameter_LossBalancing_UNIFORM:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
-                                    NormalizeUniformFunctor<Dtype>());
-        break;
-    case DenseCorrespondenceParameter_LossBalancing_REWEIGHTED_UNIFORM:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
-                                    ReweightedNormalizeUniformFunctor<Dtype>(param.positive_weight(),param.negative_weight()));
-        break;
+
+//        LOSS_BALANCING_CASE(NUM_POSITIVES,NormalizeByNumPositivesFunctor<Dtype>());
+//        LOSS_BALANCING_CASE(TOTAL_SAMPLES,NormalizeTotalFunctor<Dtype>());
+//        LOSS_BALANCING_CASE(UNIFORM,NormalizeUniformFunctor<Dtype>());
+        LOSS_BALANCING_CASE(REWEIGHTED_UNIFORM,ReweightedNormalizeUniformFunctor<Dtype>(param.positive_weight(),param.negative_weight()));
+
+//    case DenseCorrespondenceParameter_LossBalancing_NUM_POSITIVES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
+//                                    NormalizeByNumPositivesFunctor<Dtype>());
+//        break;
+//    case DenseCorrespondenceParameter_LossBalancing_TOTAL_SAMPLES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
+//                                    NormalizeTotalFunctor<Dtype>());
+//        break;
+//    case DenseCorrespondenceParameter_LossBalancing_UNIFORM:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
+//                                    NormalizeUniformFunctor<Dtype>());
+//        break;
+//    case DenseCorrespondenceParameter_LossBalancing_REWEIGHTED_UNIFORM:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector,
+//                                    ReweightedNormalizeUniformFunctor<Dtype>(param.positive_weight(),param.negative_weight()));
+//        break;
+    default:
+        throw std::runtime_error("some options have been temporarily disabled for faster builds");
     }
     return 0;
 
@@ -121,19 +160,32 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor,
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor,
                                                                       PositiveMatchSelectorT<Dtype> positiveSelector) {
+#define NEGATIVE_SELECTION_CASE(protoName,instantiation)   \
+    case DenseCorrespondenceParameter_NegativeSelection_##protoName: \
+        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector, \
+                                    instantiation); \
+        break
+
     switch (param.negative_selection()) {
-    case DenseCorrespondenceParameter_NegativeSelection_ALL_NEGATIVES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,
-                                    AllNegativesSelector<Dtype>(width,height));
-        break;
-    case DenseCorrespondenceParameter_NegativeSelection_RANDOM_NEGATIVES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,
-                                    RandomNegativesSelector<Dtype>(param.negative_samples()));
-        break;
-    case DenseCorrespondenceParameter_NegativeSelection_HARD_NEGATIVES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,
-                                    HardNegativesSelector<Dtype>(param.negative_samples()));
-        break;
+
+//        NEGATIVE_SELECTION_CASE(ALL_NEGATIVES,AllNegativesSelector<Dtype>(width,height));
+        NEGATIVE_SELECTION_CASE(RANDOM_NEGATIVES,RandomNegativesSelector<Dtype>(param.negative_samples()));
+//        NEGATIVE_SELECTION_CASE(HARD_NEGATIVES,HardNegativesSelector<Dtype>(param.negative_samples()));
+
+//    case DenseCorrespondenceParameter_NegativeSelection_ALL_NEGATIVES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,
+//                                    AllNegativesSelector<Dtype>(width,height));
+//        break;
+//    case DenseCorrespondenceParameter_NegativeSelection_RANDOM_NEGATIVES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,
+//                                    RandomNegativesSelector<Dtype>(param.negative_samples()));
+//        break;
+//    case DenseCorrespondenceParameter_NegativeSelection_HARD_NEGATIVES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,
+//                                    HardNegativesSelector<Dtype>(param.negative_samples()));
+//        break;
+    default:
+        throw std::runtime_error("some options have been temporarily disabled for faster builds");
     }
     return 0;
 
@@ -147,14 +199,25 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor,
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor) {
 
+#define POSITIVE_SELECTION_CASE(protoName,instantiation) \
+    case DenseCorrespondenceParameter_PositiveSelection_##protoName: \
+        return createImplementation(param,width,height,posLossFunctor,negLossFunctor, \
+                                    instantiation); \
+        break
+
     switch (param.positive_selection()) {
-    case DenseCorrespondenceParameter_PositiveSelection_ALL_POSITIVES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,
-                                    AllPositiveMatchesSelector<Dtype>(width,height));
-        break;
-    case DenseCorrespondenceParameter_PositiveSelection_RANDOM_POSITIVES:
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,
-                                    RandomPositiveMatchesSelector<Dtype>(param.positive_samples()));
+//        POSITIVE_SELECTION_CASE(ALL_POSITIVES,AllPositiveMatchesSelector<Dtype>(width,height));
+        POSITIVE_SELECTION_CASE(RANDOM_POSITIVES,RandomPositiveMatchesSelector<Dtype>(param.positive_samples()));
+
+//    case DenseCorrespondenceParameter_PositiveSelection_ALL_POSITIVES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,
+//                                    AllPositiveMatchesSelector<Dtype>(width,height));
+//        break;
+//    case DenseCorrespondenceParameter_PositiveSelection_RANDOM_POSITIVES:
+//        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,
+//                                    RandomPositiveMatchesSelector<Dtype>(param.positive_samples()));
+    default:
+        throw std::runtime_error("some options have been temporarily disabled for faster builds");
         break;
     }
 
@@ -169,19 +232,32 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
                                                                       const int width, const int height,
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor) {
 
+#define NEGATIVE_LOSS_CASE(protoName,instantiation) \
+    case DenseCorrespondenceParameter_NegativeLoss_##protoName: \
+        return createImplementation(param,width,height,posLossFunctor, \
+                                    instantiation); \
+        break
+
     switch (param.negative_loss()) {
-    case DenseCorrespondenceParameter_NegativeLoss_HINGE:
-        return createImplementation(param,width,height,posLossFunctor,
-                                    HingeLossFunctor<Dtype>(param.margin()));
-        break;
-    case DenseCorrespondenceParameter_NegativeLoss_HUBER_HINGE:
-        return createImplementation(param,width,height,posLossFunctor,
-                                    HuberHingeLossFunctor<Dtype>(param.margin(),param.negative_huber_delta()));
-        break;
-    case DenseCorrespondenceParameter_NegativeLoss_NEGATIVE_EXPONENTIAL:
-        return createImplementation(param,width,height,posLossFunctor,
-                                    NegativeExponentialLossFunctor<Dtype>(param.negative_exp_sigma()));
-        break;
+
+        NEGATIVE_LOSS_CASE(HINGE,HingeLossFunctor<Dtype>(param.margin()));
+//        NEGATIVE_LOSS_CASE(HUBER_HINGE,HuberHingeLossFunctor<Dtype>(param.margin(),param.negative_huber_delta()));
+//        NEGATIVE_LOSS_CASE(NEGATIVE_EXPONENTIAL,NegativeExponentialLossFunctor<Dtype>(param.negative_exp_sigma()));
+
+//    case DenseCorrespondenceParameter_NegativeLoss_HINGE:
+//        return createImplementation(param,width,height,posLossFunctor,
+//                                    HingeLossFunctor<Dtype>(param.margin()));
+//        break;
+//    case DenseCorrespondenceParameter_NegativeLoss_HUBER_HINGE:
+//        return createImplementation(param,width,height,posLossFunctor,
+//                                    HuberHingeLossFunctor<Dtype>(param.margin(),param.negative_huber_delta()));
+//        break;
+//    case DenseCorrespondenceParameter_NegativeLoss_NEGATIVE_EXPONENTIAL:
+//        return createImplementation(param,width,height,posLossFunctor,
+//                                    NegativeExponentialLossFunctor<Dtype>(param.negative_exp_sigma()));
+//        break;
+    default:
+        throw std::runtime_error("some options have been temporarily disabled for faster builds");
     }
     return 0;
 
@@ -191,16 +267,28 @@ template <typename Dtype>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
                                                                       const int width, const int height) {
 
+#define POSITIVE_LOSS_CASE(protoName,instantiation) \
+    case DenseCorrespondenceParameter_PositiveLoss_##protoName: \
+        return createImplementation(param,width,height,instantiation); \
+        break
+
     switch (param.positive_loss()) {
-    case DenseCorrespondenceParameter_PositiveLoss_L2:
-        return createImplementation(param,width,height,SquaredLossFunctor<Dtype>());
-        break;
-    case DenseCorrespondenceParameter_PositiveLoss_HUBER:
-        return createImplementation(param,width,height,HuberLossFunctor<Dtype>(param.positive_huber_delta()));
-        break;
-    case DenseCorrespondenceParameter_PositiveLoss_TUKEY:
-        return createImplementation(param,width,height,TukeyLossFunctor<Dtype>(param.positive_tukey_c()));
-        break;
+
+        POSITIVE_LOSS_CASE(L2,SquaredLossFunctor<Dtype>());
+//        POSITIVE_LOSS_CASE(HUBER,HuberLossFunctor<Dtype>(param.positive_huber_delta()));
+//        POSITIVE_LOSS_CASE(TUKEY,TukeyLossFunctor<Dtype>(param.positive_tukey_c()));
+
+//    case DenseCorrespondenceParameter_PositiveLoss_L2:
+//        return createImplementation(param,width,height,SquaredLossFunctor<Dtype>());
+//        break;
+//    case DenseCorrespondenceParameter_PositiveLoss_HUBER:
+//        return createImplementation(param,width,height,HuberLossFunctor<Dtype>(param.positive_huber_delta()));
+//        break;
+//    case DenseCorrespondenceParameter_PositiveLoss_TUKEY:
+//        return createImplementation(param,width,height,TukeyLossFunctor<Dtype>(param.positive_tukey_c()));
+//        break;
+    default:
+        throw std::runtime_error("some options have been temporarily disabled for faster builds");
     }
     return 0;
 
