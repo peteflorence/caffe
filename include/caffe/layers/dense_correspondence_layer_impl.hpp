@@ -2047,7 +2047,7 @@ class NoWeighting {
 public:
 
     inline NoWeighting(const std::vector<Blob<Dtype> *> & /*bottom*/,
-                       const int /*pair*/) { }
+                       const int /*pair*/, bool /*doDiff*/ = false) { }
 
     inline Dtype weightA(const int /*x*/, const int /*y*/) const {
         return Dtype(1);
@@ -2064,9 +2064,11 @@ class InputWeighting {
 public:
 
     inline InputWeighting(const std::vector<Blob<Dtype> *> & bottom,
-                          const int pair)
+                          const int pair, bool doDiff = false)
         : weightsA_(bottom[5]->cpu_data() + pair*bottom[5]->count(1)),
           weightsB_(bottom[6]->cpu_data() + pair*bottom[6]->count(1)),
+          diffWeightsA_(doDiff ? bottom[5]->mutable_cpu_data() : nullptr),
+          diffWeightsB_(doDiff ? bottom[6]->mutable_cpu_data() : nullptr),
           width_(bottom[5]->width()) { }
 
     inline Dtype weightA(const int x, const int y) const {
@@ -2089,10 +2091,18 @@ public:
 
     }
 
+//    inline void backpropWeighting(const Dtype diff) {
+
+//    }
+
 private:
 
     const Dtype * weightsA_;
     const Dtype * weightsB_;
+
+    Dtype * diffWeightsA_;
+    Dtype * diffWeightsB_;
+
     const int width_;
 
 };
@@ -2510,6 +2520,8 @@ public:
             Dtype * diffA = bottom[0]->mutable_cpu_diff() + pair*bottom[0]->count(1);
             Dtype * diffB = bottom[1]->mutable_cpu_diff() + pair*bottom[1]->count(1);
 
+            PixelwiseWeightingT<Dtype> pixelwiseWeigting(bottom,pair,true);
+
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             std::cout << "positives" << std::endl;
@@ -2522,10 +2534,16 @@ public:
 
                 const Dtype * thisDiff = posDiffData + i*repChannels;
 
+                const Dtype weightA = pixelwiseWeigting.weightA(uA,vA);
+                const Dtype weightB = pixelwiseWeigting.weightB(uB,vB);
+                const Dtype thisAlpha = weightA*weightB*posAlpha;
+
                 posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
-                                                                                   uA,vA,posAlpha,diffA);
+                                                                                   uA,vA, thisAlpha,diffA);
                 posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
-                                                                                   uB,vB,-posAlpha,diffB);
+                                                                                   uB,vB,-thisAlpha,diffB);
+
+
 
             }
 
