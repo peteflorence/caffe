@@ -2037,6 +2037,65 @@ private:
 
 };
 
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//
+//                      pixelwise weighting
+//
+// -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+template <typename Dtype>
+class NoWeighting {
+public:
+
+    inline NoWeighting(const std::vector<Blob<Dtype> *> & /*bottom*/,
+                       const int /*pair*/) { }
+
+    inline Dtype weightA(const int /*x*/, const int /*y*/) const {
+        return Dtype(1);
+    }
+
+    inline Dtype weightB(const Dtype /*x*/, const Dtype /*y*/) const {
+        return Dtype(1);
+    }
+
+};
+
+template <typename Dtype>
+class InputWeighting {
+public:
+
+    inline InputWeighting(const std::vector<Blob<Dtype> *> & bottom,
+                          const int pair)
+        : weightsA_(bottom[5]->cpu_data() + pair*bottom[5]->count(1)),
+          weightsB_(bottom[6]->cpu_data() + pair*bottom[6]->count(1)),
+          width_(bottom[5]->width()) { }
+
+    inline Dtype weightA(const int x, const int y) const {
+
+        return weightsA_[x + width_*y];
+
+    }
+
+    inline Dtype weightB(const Dtype x, const Dtype y) const {
+
+        const int baseX = x;
+        const int baseY = y;
+        const Dtype offX = x - baseX;
+        const Dtype offY = y - baseY;
+
+        return (1-offX)*(1-offY)*weightsB_[( baseX ) + width_*( baseY )] +
+               (1-offX)*( offY )*weightsB_[( baseX ) + width_*(baseY+1)] +
+               ( offX )*(1-offY)*weightsB_[(baseX+1) + width_*( baseY )] +
+               ( offX )*( offY )*weightsB_[(baseX+1) + width_*(baseY+1)];
+
+    }
+
+private:
+
+    const Dtype * weightsA_;
+    const Dtype * weightsB_;
+    const int width_;
+
+};
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
@@ -2164,7 +2223,8 @@ template <typename Dtype,
           template <typename> class PositiveLossFunctorT,
           template <typename> class NegativeMatchSelectorT,
           template <typename> class NegativeLossFunctorT,
-          template <typename> class LossBalancingFunctorT>
+          template <typename> class LossBalancingFunctorT,
+          template <typename> class PixelwiseWeightingT = NoWeighting>
 class DenseCorrespondenceLayerImpl : public DenseCorrespondenceLayerImplBase<Dtype> {
 public:
 
@@ -2283,6 +2343,8 @@ public:
             const Dtype * vertsA = bottom[2]->cpu_data() + pair*bottom[2]->count(1);
             const Dtype * vertsB = bottom[3]->cpu_data() + pair*bottom[3]->count(1);
 
+            PixelwiseWeightingT<Dtype> pixelwiseWeighting(bottom,pair);
+
             TransformationMatrix<Dtype> transformationGlobalToB(bottom[4]->cpu_data() + pair*bottom[4]->count(1));
 
             Dtype * posDiffData = diff_.mutable_cpu_data() + pair*diff_.count(1);
@@ -2348,7 +2410,11 @@ public:
             if (positiveIndex > 0) {
                 caffe_sub(positiveIndex*repChannels,representationAData,representationPosBData,posDiffData);
                 for (int i=0; i<positiveIndex; ++i) {
-                    posLoss += posLossFunctor_.loss(posDiffData + i*repChannels,repChannels);
+                    const Dtype weightA = pixelwiseWeighting.weightA(posSampleAData[0 + 2*positiveIndex],
+                                                                     posSampleAData[1 + 2*positiveIndex]);
+                    const Dtype weightB = pixelwiseWeighting.weightB(posSampleBData[0 + 2*positiveIndex],
+                                                                     posSampleBData[1 + 2*positiveIndex]);
+                    posLoss += weightA*weightB*posLossFunctor_.loss(posDiffData + i*repChannels,repChannels);
                 }
             }
 
@@ -2400,95 +2466,6 @@ public:
 
         }
 
-//            while (positiveSelector_.getNextMatch(uA,vA,uBPos,vBPos,ptA,
-//                                                  vertsA,vertsB,
-//                                                  repWidth,repHeight,
-//                                                  *matchFinder,
-////                                                  transformationGlobalToB,
-////                                                  flX_,flY_,ppX_,ppY_,
-//                                                  allowMatchless_,
-//                                                  vertAValid)) {
-
-//                // save sample points for gradient computation
-//                posSampleAData[0 + 2*positiveIndex] = uA;
-//                posSampleAData[1 + 2*positiveIndex] = vA;
-//                posSampleBData[0 + 2*positiveIndex] = uBPos;
-//                posSampleBData[1 + 2*positiveIndex] = vBPos;
-
-//                // extract representation of A
-//                std::vector<Dtype> representationA(repChannels);
-//                for (int c=0; c<repChannels; ++c) {
-//                    representationA[c] = repA[uA + repWidth*(vA + repHeight*c)];
-//                }
-
-//                std::vector<Dtype> representationB(repChannels);
-
-//                //std::cout << uA << ", " << vA << "  ->  ";
-//                //std::cout << uBPos << ", " << vBPos << std::endl;
-
-//                const bool negOnly = allowMatchless_ && (uBPos < 0 || uBPos >= repWidth-2 || vBPos < 0 || vBPos >= repHeight-2);
-//                if (!negOnly) {
-
-//                    interpolateRepresentation(repB,repWidth,repHeight,repChannels,
-//                                              uBPos,vBPos,representationB.data());
-
-//                    Dtype * thisDiff = posDiffData + positiveIndex*repChannels;
-//                    caffe_sub(repChannels,representationA.data(),representationB.data(),thisDiff);
-
-//                    posLoss += posLossFunctor_.loss(thisDiff,repChannels);
-
-//                    ++positiveIndex;
-
-//                }
-
-//                // get negatives
-//                negativeSelector_.init(uA,vA,
-//                                       repB,
-//                                       repWidth,repHeight,
-//                                       repChannels,
-//                                       negLossFunctor_.hasMargin() ? negLossFunctor_.margin()*negLossFunctor_.margin() : std::numeric_limits<Dtype>::infinity(),
-//                                       representationA);
-
-//                int uBNeg, vBNeg;
-
-//                while (negativeSelector_.getNextMatch(uBNeg,vBNeg,
-//                                                      uA,vA,
-//                                                      repB,
-//                                                      repWidth,repHeight,
-//                                                      repChannels,
-//                                                      negLossFunctor_.hasMargin() ? negLossFunctor_.margin()*negLossFunctor_.margin() : std::numeric_limits<Dtype>::infinity(),
-//                                                      representationA,
-//                                                      representationB,
-//                                                      negDiffData + negativeIndex*repChannels)) {
-
-//                    // save sample points for gradient computation
-//                    negSampleAData[0 + 2*negativeIndex] = uA;
-//                    negSampleAData[1 + 2*negativeIndex] = vA;
-//                    negSampleBData[0 + 2*negativeIndex] = uBNeg;
-//                    negSampleBData[1 + 2*negativeIndex] = vBNeg;
-
-
-////                    for (int c=0; c<repChannels; ++c) {
-////                        representationB[c] = repB[uBNeg + repWidth*(vBNeg + repHeight*c)];
-////                    }
-
-//                    Dtype * thisDiff = negDiffData + negativeIndex*repChannels;
-////                    caffe_sub(repChannels,representationA.data(),representationB.data(),thisDiff);
-
-//                    negLoss += negLossFunctor_.loss(thisDiff,repChannels);
-
-//                    ++negativeIndex;
-
-//                }
-
-//                //std::cout << "neg idx " << negativeIndex << std::endl;
-
-//            }
-
-//            nSuccessfulPositiveSamples_[pair] = positiveIndex;
-//            nSuccessfulNegativeSamples_[pair] = negativeIndex;
-
-//        }
 
         const int nPositives = std::accumulate(nSuccessfulPositiveSamples_.begin(),nSuccessfulPositiveSamples_.end(),0);
         const int nNegatives = std::accumulate(nSuccessfulNegativeSamples_.begin(),nSuccessfulNegativeSamples_.end(),0);

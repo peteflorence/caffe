@@ -8,6 +8,51 @@
 namespace caffe {
 
 // -=-=-=- creation code -=-=-=-
+template<typename Dtype,
+         template <typename> class PositiveLossFunctorT,
+         template <typename> class NegativeLossFunctorT,
+         template <typename> class PositiveMatchSelectorT,
+         template <typename> class NegativeMatchSelectorT,
+         template <typename> class LossBalancingFunctorT,
+         template <typename> class MatchSelectorT>
+inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
+                                                                      const vector<Blob<Dtype> *> & bottom,
+                                                                      PositiveLossFunctorT<Dtype> posLossFunctor,
+                                                                      NegativeLossFunctorT<Dtype> negLossFunctor,
+                                                                      PositiveMatchSelectorT<Dtype> positiveSelector,
+                                                                      NegativeMatchSelectorT<Dtype> negativeSelector,
+                                                                      LossBalancingFunctorT<Dtype> lossBalancingFunctor,
+                                                                      Type2Type<MatchSelectorT<Dtype> > matchSelectorTag) {
+
+#define WEIGHTING_CASE(numBottom,weighting) \
+    if (bottom.size() == numBottom) { \
+        return new DenseCorrespondenceLayerImpl<Dtype, \
+                                                MatchSelectorT, \
+                                                PositiveMatchSelectorT, \
+                                                PositiveLossFunctorT, \
+                                                NegativeMatchSelectorT, \
+                                                NegativeLossFunctorT, \
+                                                LossBalancingFunctorT, \
+                                                weighting>(positiveSelector, \
+                                                           posLossFunctor, \
+                                                           negativeSelector, \
+                                                           negLossFunctor, \
+                                                           lossBalancingFunctor, \
+                                                           param.focal_length_x(), \
+                                                           param.focal_length_y(), \
+                                                           param.principal_point_x(), \
+                                                           param.principal_point_y(), \
+                                                           param.enable_matchless()); \
+    }
+
+    WEIGHTING_CASE(5,NoWeighting);
+    WEIGHTING_CASE(7,InputWeighting);
+
+    throw std::runtime_error("DenseCorrespondenceLayer cannot have this number of input blobs");
+
+}
+
+
 template <typename Dtype,
           template <typename> class PositiveLossFunctorT,
           template <typename> class NegativeLossFunctorT,
@@ -15,7 +60,7 @@ template <typename Dtype,
           template <typename> class NegativeMatchSelectorT,
           template <typename> class LossBalancingFunctorT>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-                                                                      const int width, const int height,
+                                                                      const vector<Blob<Dtype> *> & bottom,
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor,
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor,
                                                                       PositiveMatchSelectorT<Dtype> positiveSelector,
@@ -24,22 +69,27 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 
 #define MATCH_FINDING_CASE(protoName,matchFinder) \
     case DenseCorrespondenceParameter_MatchFinding_##protoName: \
-        return new DenseCorrespondenceLayerImpl<Dtype, \
-                                                matchFinder, \
-                                                PositiveMatchSelectorT, \
-                                                PositiveLossFunctorT, \
-                                                NegativeMatchSelectorT, \
-                                                NegativeLossFunctorT, \
-                                                LossBalancingFunctorT>(positiveSelector, \
-                                                                       posLossFunctor, \
-                                                                       negativeSelector, \
-                                                                       negLossFunctor, \
-                                                                       lossBalancingFunctor, \
-                                                                       param.focal_length_x(), \
-                                                                       param.focal_length_y(), \
-                                                                       param.principal_point_x(), \
-                                                                       param.principal_point_y(), \
-                                                                       param.enable_matchless())
+        return createImplementation(param, bottom, posLossFunctor, negLossFunctor, \
+                                    positiveSelector, negativeSelector, lossBalancingFunctor, \
+                                    Type2Type<matchFinder<Dtype> >()); \
+        break
+
+//        return new DenseCorrespondenceLayerImpl<Dtype, \
+//                                                matchFinder, \
+//                                                PositiveMatchSelectorT, \
+//                                                PositiveLossFunctorT, \
+//                                                NegativeMatchSelectorT, \
+//                                                NegativeLossFunctorT, \
+//                                                LossBalancingFunctorT>(positiveSelector, \
+//                                                                       posLossFunctor, \
+//                                                                       negativeSelector, \
+//                                                                       negLossFunctor, \
+//                                                                       lossBalancingFunctor, \
+//                                                                       param.focal_length_x(), \
+//                                                                       param.focal_length_y(), \
+//                                                                       param.principal_point_x(), \
+//                                                                       param.principal_point_y(), \
+//                                                                       param.enable_matchless())
 
     switch (param.match_finding()) {
 
@@ -109,7 +159,7 @@ template <typename Dtype,
           template <typename> class PositiveMatchSelectorT,
           template <typename> class NegativeMatchSelectorT>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-                                                                      const int width, const int height,
+                                                                      const vector<Blob<Dtype> *> & bottom,
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor,
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor,
                                                                       PositiveMatchSelectorT<Dtype> positiveSelector,
@@ -117,7 +167,7 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 
 #define LOSS_BALANCING_CASE(protoName,instantiation) \
     case DenseCorrespondenceParameter_LossBalancing_##protoName: \
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector, \
+        return createImplementation(param,bottom,posLossFunctor,negLossFunctor,positiveSelector,negativeSelector, \
                                     instantiation); \
         break
 
@@ -156,19 +206,19 @@ template <typename Dtype,
           template <typename> class NegativeLossFunctorT,
           template <typename> class PositiveMatchSelectorT>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-                                                                      const int width, const int height,
+                                                                      const vector<Blob<Dtype> *> & bottom,
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor,
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor,
                                                                       PositiveMatchSelectorT<Dtype> positiveSelector) {
 #define NEGATIVE_SELECTION_CASE(protoName,instantiation)   \
     case DenseCorrespondenceParameter_NegativeSelection_##protoName: \
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,positiveSelector, \
+        return createImplementation(param,bottom,posLossFunctor,negLossFunctor,positiveSelector, \
                                     instantiation); \
         break
 
     switch (param.negative_selection()) {
 
-//        NEGATIVE_SELECTION_CASE(ALL_NEGATIVES,AllNegativesSelector<Dtype>(width,height));
+//        NEGATIVE_SELECTION_CASE(ALL_NEGATIVES,AllNegativesSelector<Dtype>(bottom[0]->width(),bottom[0]->height()));
         NEGATIVE_SELECTION_CASE(RANDOM_NEGATIVES,RandomNegativesSelector<Dtype>(param.negative_samples()));
 //        NEGATIVE_SELECTION_CASE(HARD_NEGATIVES,HardNegativesSelector<Dtype>(param.negative_samples()));
 
@@ -195,18 +245,18 @@ template <typename Dtype,
           template <typename> class PositiveLossFunctorT,
           template <typename> class NegativeLossFunctorT>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-                                                                      const int width, const int height,
+                                                                      const vector<Blob<Dtype> *> & bottom,
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor,
                                                                       NegativeLossFunctorT<Dtype> negLossFunctor) {
 
 #define POSITIVE_SELECTION_CASE(protoName,instantiation) \
     case DenseCorrespondenceParameter_PositiveSelection_##protoName: \
-        return createImplementation(param,width,height,posLossFunctor,negLossFunctor, \
+        return createImplementation(param,bottom,posLossFunctor,negLossFunctor, \
                                     instantiation); \
         break
 
     switch (param.positive_selection()) {
-//        POSITIVE_SELECTION_CASE(ALL_POSITIVES,AllPositiveMatchesSelector<Dtype>(width,height));
+//        POSITIVE_SELECTION_CASE(ALL_POSITIVES,AllPositiveMatchesSelector<Dtype>(bottom[0]->width(),bottom[0]->height()));
         POSITIVE_SELECTION_CASE(RANDOM_POSITIVES,RandomPositiveMatchesSelector<Dtype>(param.positive_samples()));
 
 //    case DenseCorrespondenceParameter_PositiveSelection_ALL_POSITIVES:
@@ -229,12 +279,12 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 template <typename Dtype,
           template <typename> class PositiveLossFunctorT>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-                                                                      const int width, const int height,
+                                                                      const vector<Blob<Dtype> *> & bottom,
                                                                       PositiveLossFunctorT<Dtype> posLossFunctor) {
 
 #define NEGATIVE_LOSS_CASE(protoName,instantiation) \
     case DenseCorrespondenceParameter_NegativeLoss_##protoName: \
-        return createImplementation(param,width,height,posLossFunctor, \
+        return createImplementation(param,bottom,posLossFunctor, \
                                     instantiation); \
         break
 
@@ -265,11 +315,11 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 
 template <typename Dtype>
 inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const DenseCorrespondenceParameter & param,
-                                                                      const int width, const int height) {
+                                                                      const vector<Blob<Dtype> *> & bottom) {
 
 #define POSITIVE_LOSS_CASE(protoName,instantiation) \
     case DenseCorrespondenceParameter_PositiveLoss_##protoName: \
-        return createImplementation(param,width,height,instantiation); \
+        return createImplementation(param,bottom,instantiation); \
         break
 
     switch (param.positive_loss()) {
@@ -419,8 +469,7 @@ void DenseCorrespondenceLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> & b
     }
 
     std::cout << "creating implementation" << std::endl;
-    impl_ = createImplementation<Dtype>(this->layer_param().dense_correspondence_param(),
-                                        bottom[0]->width(),bottom[0]->height());
+    impl_ = createImplementation<Dtype>(this->layer_param().dense_correspondence_param(),bottom);
 
     impl_->LayerSetUp(bottom,top);
 
