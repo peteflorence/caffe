@@ -2057,6 +2057,10 @@ public:
         return Dtype(1);
     }
 
+    inline void backpropWeightA(const int /*x*/, const int /*y*/, const Dtype /*topDiff*/) { }
+
+    inline void backpropWeightB(const Dtype /*x*/, const Dtype /*y*/, const Dtype /*topDiff*/) { }
+
 };
 
 template <typename Dtype>
@@ -2067,8 +2071,8 @@ public:
                           const int pair, bool doDiff = false)
         : weightsA_(bottom[5]->cpu_data() + pair*bottom[5]->count(1)),
           weightsB_(bottom[6]->cpu_data() + pair*bottom[6]->count(1)),
-          diffWeightsA_(doDiff ? bottom[5]->mutable_cpu_data() : nullptr),
-          diffWeightsB_(doDiff ? bottom[6]->mutable_cpu_data() : nullptr),
+          diffWeightsA_(doDiff ? bottom[5]->mutable_cpu_data() : 0),
+          diffWeightsB_(doDiff ? bottom[6]->mutable_cpu_data() : 0),
           width_(bottom[5]->width()) { }
 
     inline Dtype weightA(const int x, const int y) const {
@@ -2091,9 +2095,25 @@ public:
 
     }
 
-//    inline void backpropWeighting(const Dtype diff) {
+    inline void backpropWeightA(const int x, const int y, const Dtype topDiff) {
 
-//    }
+        diffWeightsA_[x + width_*y] += topDiff;
+
+    }
+
+    inline void backpropWeightB(const Dtype x, const Dtype y, const Dtype topDiff) {
+
+        const int baseX = x;
+        const int baseY = y;
+        const Dtype offX = x - baseX;
+        const Dtype offY = y - baseY;
+
+        diffWeightsB_[( baseX ) + width_*( baseY )] += (1-offX)*(1-offY)*topDiff;
+        diffWeightsB_[( baseX ) + width_*(baseY+1)] += (1-offX)*( offY )*topDiff;
+        diffWeightsB_[(baseX+1) + width_*( baseY )] += ( offX )*(1-offY)*topDiff;
+        diffWeightsB_[(baseX+1) + width_*(baseY+1)] += ( offX )*( offY )*topDiff;
+
+    }
 
 private:
 
@@ -2520,7 +2540,7 @@ public:
             Dtype * diffA = bottom[0]->mutable_cpu_diff() + pair*bottom[0]->count(1);
             Dtype * diffB = bottom[1]->mutable_cpu_diff() + pair*bottom[1]->count(1);
 
-            PixelwiseWeightingT<Dtype> pixelwiseWeigting(bottom,pair,true);
+            PixelwiseWeightingT<Dtype> pixelwiseWeighting(bottom,pair,true);
 
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -2534,8 +2554,8 @@ public:
 
                 const Dtype * thisDiff = posDiffData + i*repChannels;
 
-                const Dtype weightA = pixelwiseWeigting.weightA(uA,vA);
-                const Dtype weightB = pixelwiseWeigting.weightB(uB,vB);
+                const Dtype weightA = pixelwiseWeighting.weightA(uA,vA);
+                const Dtype weightB = pixelwiseWeighting.weightB(uB,vB);
                 const Dtype thisAlpha = weightA*weightB*posAlpha;
 
                 posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
@@ -2543,7 +2563,8 @@ public:
                 posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
                                                                                    uB,vB,-thisAlpha,diffB);
 
-
+                pixelwiseWeighting.backpropWeightA(uA,vA,weightB*posLossFunctor_.loss(thisDiff,repChannels));
+                pixelwiseWeighting.backpropWeightB(uB,vB,weightA*posLossFunctor_.loss(thisDiff,repChannels));
 
             }
 
