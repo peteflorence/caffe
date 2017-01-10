@@ -667,9 +667,9 @@ public:
             ptB[1] = vertMap_[uBi + width_*vBi + width_*height_];
             ptB[2] = vertMap_[uBi + width_*vBi + 2*width_*height_];
 
-            const Dtype distSquared = (ptA[0]-ptB[0]) * (ptA[0]-ptB[0]) *
-                                      (ptA[1]-ptB[1]) * (ptA[1]-ptB[1]) *
-                                      (ptA[2]-ptB[2]) * (ptA[2]-ptB[2]);
+            const Dtype distSquared = ((ptA[0]-ptB[0]) * (ptA[0]-ptB[0])) +
+                                      ((ptA[1]-ptB[1]) * (ptA[1]-ptB[1])) +
+                                      ((ptA[2]-ptB[2]) * (ptA[2]-ptB[2]));
 
             if (distSquared < matchThresholdSquared) {
                 uB = uBi;
@@ -688,7 +688,7 @@ private:
     const Dtype * vertMap_;
     const int width_, height_;
 
-    static const int maxAttempts = 25;
+    static const int maxAttempts = 100000;
     static const Dtype matchThreshold = 0.005;
     static const Dtype matchThresholdSquared = 0.000025;
 
