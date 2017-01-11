@@ -195,7 +195,8 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 //                                    ReweightedNormalizeUniformFunctor<Dtype>(param.positive_weight(),param.negative_weight()));
 //        break;
     default:
-        throw std::runtime_error("some options have been temporarily disabled for faster builds");
+        throw std::runtime_error("some options have been temporarily disabled for faster builds, including " +
+                                 DenseCorrespondenceParameter_LossBalancing_Name(param.loss_balancing()));
     }
     return 0;
 
@@ -235,7 +236,8 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 //                                    HardNegativesSelector<Dtype>(param.negative_samples()));
 //        break;
     default:
-        throw std::runtime_error("some options have been temporarily disabled for faster builds");
+        throw std::runtime_error("some options have been temporarily disabled for faster builds, including " +
+                                 DenseCorrespondenceParameter_NegativeSelection_Name(param.negative_selection()));
     }
     return 0;
 
@@ -267,7 +269,8 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 //        return createImplementation(param,width,height,posLossFunctor,negLossFunctor,
 //                                    RandomPositiveMatchesSelector<Dtype>(param.positive_samples()));
     default:
-        throw std::runtime_error("some options have been temporarily disabled for faster builds");
+        throw std::runtime_error("some options have been temporarily disabled for faster builds, including " +
+                                 DenseCorrespondenceParameter_PositiveSelection_Name(param.positive_selection()));
         break;
     }
 
@@ -307,7 +310,8 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 //                                    NegativeExponentialLossFunctor<Dtype>(param.negative_exp_sigma()));
 //        break;
     default:
-        throw std::runtime_error("some options have been temporarily disabled for faster builds");
+        throw std::runtime_error("some options have been temporarily disabled for faster builds, including " +
+                                 DenseCorrespondenceParameter_NegativeLoss_Name(param.negative_loss()));
     }
     return 0;
 
@@ -338,7 +342,8 @@ inline DenseCorrespondenceLayerImplBase<Dtype> * createImplementation(const Dens
 //        return createImplementation(param,width,height,TukeyLossFunctor<Dtype>(param.positive_tukey_c()));
 //        break;
     default:
-        throw std::runtime_error("some options have been temporarily disabled for faster builds");
+        throw std::runtime_error("some options have been temporarily disabled for faster builds, including " +
+                                 DenseCorrespondenceParameter_PositiveLoss_Name(param.positive_loss()));
     }
     return 0;
 
@@ -468,12 +473,9 @@ void DenseCorrespondenceLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype> *> & b
         delete impl_;
     }
 
-    std::cout << "creating implementation" << std::endl;
     impl_ = createImplementation<Dtype>(this->layer_param().dense_correspondence_param(),bottom);
 
     impl_->LayerSetUp(bottom,top);
-
-    std::cout << (int64_t)this << " --> " << (int64_t)impl_ << std::endl;
 
 //    // -=-=-=-=- checks -=-=-=-=-
 

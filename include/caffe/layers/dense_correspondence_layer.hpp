@@ -18,14 +18,9 @@ class DenseCorrespondenceLayer : public LossLayer<Dtype> {
 public:
 
     explicit DenseCorrespondenceLayer(const LayerParameter & param)
-        : LossLayer<Dtype>(param), impl_(0) {
-
-        std::cout << "constructing " << (int64_t)this << std::endl;
-
-    }
+        : LossLayer<Dtype>(param), impl_(0) { }
 
     ~DenseCorrespondenceLayer() {
-        std::cout << "destructing " << (int64_t)this << std::endl;
         delete impl_;
     }
 
@@ -42,7 +37,13 @@ public:
     // 2 - vertices A       (3 x W x H)
     // 3 - vertices B       (3 x W x H)
     // 4 - transforms       (3 x 4)
-    virtual inline int ExactNumBottomBlobs() const { return 5; }
+    // 5 - weights A        (1 x W x H) [optional]
+    // 6 - weights B        (1 x W x H) [optional]
+    virtual inline int ExactNumBottomBlobs() const { return -1; }
+
+    virtual inline int MinBottomBlobs() const { return 5; }
+
+    virtual inline int MaxBottomBlobs() const { return 7; }
 
     virtual inline int ExactNumTopBlobs() const { return 1; }
 
@@ -51,8 +52,6 @@ public:
     inline const Blob<Dtype> & samplesB() const { return impl_->samplesB(); }
 
     inline const int numPositivesPossible() const {
-        std::cout << "(" << (int64_t)this << ")" << std::endl;
-        std::cout << "implementation: " << (int64_t)impl_ << std::endl;
         return impl_->numPositivesPossible();
     }
 
