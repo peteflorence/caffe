@@ -37,9 +37,9 @@ __global__ void DCLBackwardPositives(const int N,
         lossFunctor.template differentiateLoss<CudaAtomicAddition>(thisDiff,width,height,channels,
                                                                    uB,vB,-thisAlpha,gradB);
 
-        weighting.template backpropWeightA<CudaAtomicAddition>(uA,vA,weightB*lossFunctor.loss(thisDiff,channels));
+        weighting.template backpropWeightA<CudaAtomicAddition>(uA,vA,posAlpha*weightB*lossFunctor.loss(thisDiff,channels));
 
-        weighting.template backpropWeightB<CudaAtomicAddition>(uB,vB,weightA*lossFunctor.loss(thisDiff,channels));
+        weighting.template backpropWeightB<CudaAtomicAddition>(uB,vB,posAlpha*weightA*lossFunctor.loss(thisDiff,channels));
 
     }
 

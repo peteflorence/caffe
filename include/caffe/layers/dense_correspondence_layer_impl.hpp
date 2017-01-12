@@ -2641,6 +2641,11 @@ public:
         caffe_gpu_set(bottom[0]->count(),Dtype(0),bottom[0]->mutable_gpu_diff());
         caffe_gpu_set(bottom[1]->count(),Dtype(0),bottom[1]->mutable_gpu_diff());
 
+        if (bottom.size() > 5) {
+            caffe_gpu_set(bottom[5]->count(),Dtype(0),bottom[5]->mutable_gpu_diff());
+            caffe_gpu_set(bottom[6]->count(),Dtype(0),bottom[6]->mutable_gpu_diff());
+        }
+
         const int numPairs = bottom[0]->num();
 
         const int width = bottom[0]->width();
