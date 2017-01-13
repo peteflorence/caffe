@@ -55,7 +55,17 @@ public:
         return impl_->numPositivesPossible();
     }
 
-    inline const int numNegativesPossible() const { return impl_->numNegativesPossible(); }
+    inline const int numNegativesPossible() const {
+        return impl_->numNegativesPossible();
+    }
+
+    inline const int numPositivesSuccessful(const int pair) const {
+        return impl_->numPositivesSuccessful(pair);
+    }
+
+    inline const int numNegativesSuccessful(const int pair) const {
+        return impl_->numNegativesSuccessful(pair);
+    }
 
 protected:
 

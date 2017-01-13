@@ -2098,8 +2098,8 @@ public:
                           bool gpu = false)
         : weightsA_((gpu ? bottom[5]->gpu_data() : bottom[5]->cpu_data()) + pair*bottom[5]->count(1)),
           weightsB_((gpu ? bottom[6]->gpu_data() : bottom[6]->cpu_data()) + pair*bottom[6]->count(1)),
-          diffWeightsA_(doDiff ? (gpu ? bottom[5]->mutable_gpu_data() : bottom[5]->mutable_cpu_data() ) : 0),
-          diffWeightsB_(doDiff ? (gpu ? bottom[6]->mutable_gpu_data() : bottom[6]->mutable_cpu_data() ) : 0),
+          diffWeightsA_(doDiff ? (gpu ? bottom[5]->mutable_gpu_diff() : bottom[5]->mutable_cpu_diff() ) : 0),
+          diffWeightsB_(doDiff ? (gpu ? bottom[6]->mutable_gpu_diff() : bottom[6]->mutable_cpu_diff() ) : 0),
           width_(bottom[5]->width()) { }
 
 #ifdef __CUDACC__
@@ -2134,6 +2134,7 @@ public:
 #endif // __CUDACC__
     inline void backpropWeightA(const int x, const int y, const Dtype topDiff) {
 
+        printf("we in here (%f)\n",topDiff);
         AdditionModel<Dtype>::add(diffWeightsA_[x + width_*y], topDiff);
 
     }
@@ -2288,6 +2289,20 @@ public:
 
     virtual int numNegativesPossible() const = 0;
 
+    inline int numPositivesSuccessful(const int pair) const {
+//        std::cout << nSuccessfulPositiveSamples_.size() << "..." << std::endl;
+        return nSuccessfulPositiveSamples_[pair];
+    }
+
+    inline int numNegativesSuccessful(const int pair) const {
+        return nSuccessfulNegativeSamples_[pair];
+    }
+
+protected:
+
+    vector<int> nSuccessfulPositiveSamples_;
+    vector<int> nSuccessfulNegativeSamples_;
+
 };
 
 template <typename Dtype,
@@ -2388,8 +2403,8 @@ public:
 
         representationsPosB_.ReshapeLike(representationsA_);
 
-        nSuccessfulPositiveSamples_.resize(nPairs);
-        nSuccessfulNegativeSamples_.resize(nPairs);
+        this->nSuccessfulPositiveSamples_.resize(nPairs);
+        this->nSuccessfulNegativeSamples_.resize(nPairs);
 
     }
 
@@ -2534,14 +2549,14 @@ public:
 
             }
 
-            nSuccessfulPositiveSamples_[pair] = positiveIndex;
-            nSuccessfulNegativeSamples_[pair] = negativeIndex;
+            this->nSuccessfulPositiveSamples_[pair] = positiveIndex;
+            this->nSuccessfulNegativeSamples_[pair] = negativeIndex;
 
         }
 
 
-        const int nPositives = std::accumulate(nSuccessfulPositiveSamples_.begin(),nSuccessfulPositiveSamples_.end(),0);
-        const int nNegatives = std::accumulate(nSuccessfulNegativeSamples_.begin(),nSuccessfulNegativeSamples_.end(),0);
+        const int nPositives = std::accumulate(this->nSuccessfulPositiveSamples_.begin(),this->nSuccessfulPositiveSamples_.end(),0);
+        const int nNegatives = std::accumulate(this->nSuccessfulNegativeSamples_.begin(),this->nSuccessfulNegativeSamples_.end(),0);
 
         const Dtype loss = balancingFunctor_.balance(posLoss,nPositives,negLoss,nNegatives);
 
@@ -2554,6 +2569,8 @@ public:
     void Backward_cpu(const vector<Blob<Dtype>*> & top,
                       const vector<bool> & propagate_down,
                       const vector<Blob<Dtype>*> & bottom) {
+
+        std::cout << "backward cpu" << std::endl;
 
         const int numPairs = bottom[0]->num();
 
@@ -2588,7 +2605,7 @@ public:
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             std::cout << "positives" << std::endl;
-            for (int i = 0; i < nSuccessfulPositiveSamples_[pair]; ++i) {
+            for (int i = 0; i < this->nSuccessfulPositiveSamples_[pair]; ++i) {
 
                 const int uA = std::floor(posSampleAData[0 + 2*i] + 0.5);
                 const int vA = std::floor(posSampleAData[1 + 2*i] + 0.5);
@@ -2611,9 +2628,9 @@ public:
 
             }
 
-            std::cout << "negatives (" << nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
+            std::cout << "negatives (" << this->nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for negatives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-            for (int i = 0; i < nSuccessfulNegativeSamples_[pair]; ++i) {
+            for (int i = 0; i < this->nSuccessfulNegativeSamples_[pair]; ++i) {
 
                 const int uA = std::floor(negSampleAData[0 + 2*i] + 0.5);
                 const int vA = std::floor(negSampleAData[1 + 2*i] + 0.5);
@@ -2637,6 +2654,8 @@ public:
     virtual void Backward_gpu(const vector<Blob<Dtype>*>& top,
                               const vector<bool>& propagate_down,
                               const vector<Blob<Dtype>*>& bottom) {
+
+        std::cout << "backward gpu" << std::endl;
 
         caffe_gpu_set(bottom[0]->count(),Dtype(0),bottom[0]->mutable_gpu_diff());
         caffe_gpu_set(bottom[1]->count(),Dtype(0),bottom[1]->mutable_gpu_diff());
@@ -2676,16 +2695,16 @@ public:
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             std::cout << "positives" << std::endl;
-            const int posN = nSuccessfulPositiveSamples_[pair];
+            const int posN = this->nSuccessfulPositiveSamples_[pair];
 
             backwardPositiveWrapper<Dtype,PositiveLossFunctorT,PixelwiseWeightingT>(
                         posN,width,height,channels,posDiffData,posSampleAData,posSampleBData,
                         posAlpha,posLossFunctor_,diffA,diffB,pixelwiseWeighting);
 
 
-            std::cout << "negatives (" << nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
+            std::cout << "negatives (" << this->nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for negatives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-            const int negN = nSuccessfulNegativeSamples_[pair];
+            const int negN = this->nSuccessfulNegativeSamples_[pair];
 
             backwardNegativeWrapper<Dtype,NegativeLossFunctorT>(
                         negN,width,height,channels,negDiffData,negSampleAData,negSampleBData,
@@ -2709,9 +2728,6 @@ private:
     const Dtype flX_, flY_;
     const Dtype ppX_, ppY_;
     const bool allowMatchless_;
-
-    vector<int> nSuccessfulPositiveSamples_;
-    vector<int> nSuccessfulNegativeSamples_;
 
     Blob<Dtype> samplesA_, samplesB_;
     Blob<Dtype> representationsA_, representationsPosB_;
