@@ -31,7 +31,7 @@ __global__ void DCLBackwardPositives(const int N,
         const Dtype weightB = weighting.weightB(uB,vB);
         const Dtype thisAlpha = weightA*weightB*posAlpha;
 
-        printf("%f*%f*%f\n",weightA,weightB,thisAlpha);
+        printf("%f*%f*%f (%d,%d -- %f,%f)\n",weightA,weightB,thisAlpha,uA,vA,uB,vB);
 
         lossFunctor.template differentiateLoss<CudaAtomicAddition>(thisDiff,width,height,channels,
                                                                    uA,vA, thisAlpha,gradA);

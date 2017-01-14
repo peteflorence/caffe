@@ -2498,11 +2498,15 @@ public:
             if (positiveIndex > 0) {
                 caffe_sub(positiveIndex*repChannels,representationAData,representationPosBData,posDiffData);
                 for (int i=0; i<positiveIndex; ++i) {
-                    const Dtype weightA = pixelwiseWeighting.weightA(posSampleAData[0 + 2*positiveIndex],
-                                                                     posSampleAData[1 + 2*positiveIndex]);
-                    const Dtype weightB = pixelwiseWeighting.weightB(posSampleBData[0 + 2*positiveIndex],
-                                                                     posSampleBData[1 + 2*positiveIndex]);
-                    posLoss += weightA*weightB*posLossFunctor_.loss(posDiffData + i*repChannels,repChannels);
+                    const Dtype weightA = pixelwiseWeighting.weightA(posSampleAData[0 + 2*i],
+                                                                     posSampleAData[1 + 2*i]);
+                    const Dtype weightB = pixelwiseWeighting.weightB(posSampleBData[0 + 2*i],
+                                                                     posSampleBData[1 + 2*i]);
+                    const Dtype rawLoss = posLossFunctor_.loss(posDiffData + i*repChannels,repChannels);
+                    std::cout << i << ": " << weightA << "*" << weightB << "*" << rawLoss <<
+                                 "(" << posSampleAData[0 + 2*i] << ", " << posSampleAData[1 + 2*i] << " -- " <<
+                                 posSampleBData[0 + 2*i] << ", " << posSampleBData[1 + 2*i] << ")" << std::endl;
+                    posLoss += weightA*weightB*rawLoss;
                 }
             }
 
@@ -2695,6 +2699,7 @@ public:
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
             std::cout << "positives" << std::endl;
+            std::cout << samplesA_.cpu_data()[0] << ", " << samplesA_.cpu_data()[1] << std::endl;
             const int posN = this->nSuccessfulPositiveSamples_[pair];
 
             backwardPositiveWrapper<Dtype,PositiveLossFunctorT,PixelwiseWeightingT>(
