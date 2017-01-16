@@ -2098,8 +2098,8 @@ public:
                           bool gpu = false)
         : weightsA_((gpu ? bottom[5]->gpu_data() : bottom[5]->cpu_data()) + pair*bottom[5]->count(1)),
           weightsB_((gpu ? bottom[6]->gpu_data() : bottom[6]->cpu_data()) + pair*bottom[6]->count(1)),
-          diffWeightsA_(doDiff ? (gpu ? bottom[5]->mutable_gpu_diff() : bottom[5]->mutable_cpu_diff() ) : 0),
-          diffWeightsB_(doDiff ? (gpu ? bottom[6]->mutable_gpu_diff() : bottom[6]->mutable_cpu_diff() ) : 0),
+          diffWeightsA_(doDiff ? ((gpu ? bottom[5]->mutable_gpu_diff() : bottom[5]->mutable_cpu_diff() ) + pair*bottom[5]->count(1) ) : 0),
+          diffWeightsB_(doDiff ? ((gpu ? bottom[6]->mutable_gpu_diff() : bottom[6]->mutable_cpu_diff() ) + pair*bottom[6]->count(1) ) : 0),
           width_(bottom[5]->width()) { }
 
 #ifdef __CUDACC__
@@ -2134,7 +2134,6 @@ public:
 #endif // __CUDACC__
     inline void backpropWeightA(const int x, const int y, const Dtype topDiff) {
 
-        printf("we in here (%f)\n",topDiff);
         AdditionModel<Dtype>::add(diffWeightsA_[x + width_*y], topDiff);
 
     }
@@ -2149,6 +2148,8 @@ public:
         const int baseY = y;
         const Dtype offX = x - baseX;
         const Dtype offY = y - baseY;
+
+        printf("Bprop %f,%f\n",x,y);
 
         AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*( baseY )], (1-offX)*(1-offY)*topDiff);
         AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*(baseY+1)], (1-offX)*( offY )*topDiff);
@@ -2506,7 +2507,8 @@ public:
                     std::cout << i << ": " << weightA << "*" << weightB << "*" << rawLoss <<
                                  "(" << posSampleAData[0 + 2*i] << ", " << posSampleAData[1 + 2*i] << " -- " <<
                                  posSampleBData[0 + 2*i] << ", " << posSampleBData[1 + 2*i] << ")" << std::endl;
-                    posLoss += weightA*weightB*rawLoss;
+//                    posLoss += weightA*weightB*rawLoss;
+                    posLoss += sqrt(weightA*weightB)*rawLoss;
                 }
             }
 
