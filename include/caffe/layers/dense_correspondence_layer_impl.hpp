@@ -2075,6 +2075,13 @@ public:
         return Dtype(1);
     }
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline Dtype regularityLoss(const Dtype /*weight*/) const {
+        return Dtype(0);
+    }
+
     template <template <typename> class AdditionModel>
 #ifdef __CUDACC__
     __device__
@@ -2128,6 +2135,15 @@ public:
 
     }
 
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline Dtype regularityLoss(const Dtype weight) const {
+
+        return (Dtype(1) - weight)*(Dtype(1) - weight);
+
+    }
+
     template <template <typename> class AdditionModel>
 #ifdef __CUDACC__
     __device__
@@ -2157,6 +2173,17 @@ public:
         AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*(baseY+1)], ( offX )*( offY )*topDiff);
 
     }
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void backpropRegularityA(const int x, const int y, const Dtype topDiff) {
+
+        AdditionModel<Dtype>::add(diffWeightsA_[x + width_*y], topDiff);
+
+    }
+
 
 private:
 
@@ -2507,8 +2534,13 @@ public:
                     std::cout << i << ": " << weightA << "*" << weightB << "*" << rawLoss <<
                                  "(" << posSampleAData[0 + 2*i] << ", " << posSampleAData[1 + 2*i] << " -- " <<
                                  posSampleBData[0 + 2*i] << ", " << posSampleBData[1 + 2*i] << ")" << std::endl;
-//                    posLoss += weightA*weightB*rawLoss;
-                    posLoss += sqrt(weightA*weightB)*rawLoss;
+
+                    posLoss += weightA*weightB*rawLoss;
+
+                    posLoss += 0.2*pixelwiseWeighting.regularityLoss(weightA);
+
+                    posLoss += 0.2*pixelwiseWeighting.regularityLoss(weightB);
+//                    posLoss += sqrt(weightA*weightB)*rawLoss;
                 }
             }
 
