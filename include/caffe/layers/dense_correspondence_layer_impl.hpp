@@ -1723,9 +1723,19 @@ public:
 
     explicit HingeLossFunctor(const Dtype margin) : margin_(margin) { }
 
-    inline Dtype loss(const Dtype * diff, const int channels) {
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline Dtype loss(const Dtype * diff, const int channels) const {
+#ifdef __CUDACC__
+        Dtype distSquared = 0;
+        for (int c = 0; c < channels; ++c) {
+            distSquared += diff[c]*diff[c];
+        }
+#else
         const Dtype distSquared = caffe_cpu_dot(channels,diff,diff);
-        const Dtype mdist = std::max<Dtype>(margin_ - std::sqrt(distSquared),Dtype(0));
+#endif // __CUDACC__
+        const Dtype mdist = max(margin_ - sqrtf(distSquared),Dtype(0));
         return 0.5*mdist*mdist;
     }
 
@@ -2064,14 +2074,28 @@ public:
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline Dtype weightA(const int /*x*/, const int /*y*/) const {
+    inline Dtype positiveWeightA(const int /*x*/, const int /*y*/) const {
         return Dtype(1);
     }
 
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline Dtype weightB(const Dtype /*x*/, const Dtype /*y*/) const {
+    inline Dtype positiveWeightB(const Dtype /*x*/, const Dtype /*y*/) const {
+        return Dtype(1);
+    }
+
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline Dtype negativeWeightA(const int /*x*/, const int /*y*/) const {
+        return Dtype(1);
+    }
+
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline Dtype negativeWeightB(const Dtype /*x*/, const Dtype /*y*/) const {
         return Dtype(1);
     }
 
@@ -2086,13 +2110,25 @@ public:
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline void backpropWeightA(const int /*x*/, const int /*y*/, const Dtype /*topDiff*/) { }
+    inline void backpropPositiveWeightA(const int /*x*/, const int /*y*/, const Dtype /*topDiff*/) { }
 
     template <template <typename> class AdditionModel>
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline void backpropWeightB(const Dtype /*x*/, const Dtype /*y*/, const Dtype /*topDiff*/) { }
+    inline void backpropPositiveWeightB(const Dtype /*x*/, const Dtype /*y*/, const Dtype /*topDiff*/) { }
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void backpropNegativeWeightA(const int /*x*/, const int /*y*/, const Dtype /*topDiff*/) { }
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void backpropNegativeWeightB(const Dtype /*x*/, const Dtype /*y*/, const Dtype /*topDiff*/) { }
 
 };
 
@@ -2107,12 +2143,13 @@ public:
           weightsB_((gpu ? bottom[6]->gpu_data() : bottom[6]->cpu_data()) + pair*bottom[6]->count(1)),
           diffWeightsA_(doDiff ? ((gpu ? bottom[5]->mutable_gpu_diff() : bottom[5]->mutable_cpu_diff() ) + pair*bottom[5]->count(1) ) : 0),
           diffWeightsB_(doDiff ? ((gpu ? bottom[6]->mutable_gpu_diff() : bottom[6]->mutable_cpu_diff() ) + pair*bottom[6]->count(1) ) : 0),
-          width_(bottom[5]->width()) { }
+          width_(bottom[5]->width()),
+          height_(bottom[5]->height()){ }
 
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline Dtype weightA(const int x, const int y) const {
+    inline Dtype positiveWeightA(const int x, const int y) const {
 
         return weightsA_[x + width_*y];
 
@@ -2121,7 +2158,7 @@ public:
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline Dtype weightB(const Dtype x, const Dtype y) const {
+    inline Dtype positiveWeightB(const Dtype x, const Dtype y) const {
 
         const int baseX = x;
         const int baseY = y;
@@ -2138,6 +2175,32 @@ public:
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
+    inline Dtype negativeWeightA(const int x, const int y) const {
+
+        return weightsA_[x + width_*y + width_*height_];
+
+    }
+
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline Dtype negativeWeightB(const Dtype x, const Dtype y) const {
+
+        const int baseX = x;
+        const int baseY = y;
+        const Dtype offX = x - baseX;
+        const Dtype offY = y - baseY;
+
+        return (1-offX)*(1-offY)*weightsB_[( baseX ) + width_*( baseY ) + width_*height_] +
+               (1-offX)*( offY )*weightsB_[( baseX ) + width_*(baseY+1) + width_*height_] +
+               ( offX )*(1-offY)*weightsB_[(baseX+1) + width_*( baseY ) + width_*height_] +
+               ( offX )*( offY )*weightsB_[(baseX+1) + width_*(baseY+1) + width_*height_];
+
+    }
+
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
     inline Dtype regularityLoss(const Dtype weight) const {
 
         return (Dtype(1) - weight)*(Dtype(1) - weight);
@@ -2148,7 +2211,7 @@ public:
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline void backpropWeightA(const int x, const int y, const Dtype topDiff) {
+    inline void backpropPositiveWeightA(const int x, const int y, const Dtype topDiff) {
 
         AdditionModel<Dtype>::add(diffWeightsA_[x + width_*y], topDiff);
 
@@ -2158,7 +2221,7 @@ public:
 #ifdef __CUDACC__
     __device__
 #endif // __CUDACC__
-    inline void backpropWeightB(const Dtype x, const Dtype y, const Dtype topDiff) {
+    inline void backpropPositiveWeightB(const Dtype x, const Dtype y, const Dtype topDiff) {
 
         const int baseX = x;
         const int baseY = y;
@@ -2171,6 +2234,36 @@ public:
         AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*(baseY+1)], (1-offX)*( offY )*topDiff);
         AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*( baseY )], ( offX )*(1-offY)*topDiff);
         AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*(baseY+1)], ( offX )*( offY )*topDiff);
+
+    }
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void backpropNegativeWeightA(const int x, const int y, const Dtype topDiff) {
+
+        AdditionModel<Dtype>::add(diffWeightsA_[x + width_*y + width_*height_], topDiff);
+
+    }
+
+    template <template <typename> class AdditionModel>
+#ifdef __CUDACC__
+    __device__
+#endif // __CUDACC__
+    inline void backpropNegativeWeightB(const Dtype x, const Dtype y, const Dtype topDiff) {
+
+        const int baseX = x;
+        const int baseY = y;
+        const Dtype offX = x - baseX;
+        const Dtype offY = y - baseY;
+
+//        printf("Bprop %f,%f\n",x,y);
+
+        AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*( baseY ) + width_*height_], (1-offX)*(1-offY)*topDiff);
+        AdditionModel<Dtype>::add(diffWeightsB_[( baseX ) + width_*(baseY+1) + width_*height_], (1-offX)*( offY )*topDiff);
+        AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*( baseY ) + width_*height_], ( offX )*(1-offY)*topDiff);
+        AdditionModel<Dtype>::add(diffWeightsB_[(baseX+1) + width_*(baseY+1) + width_*height_], ( offX )*( offY )*topDiff);
 
     }
 
@@ -2194,6 +2287,7 @@ private:
     Dtype * diffWeightsB_;
 
     const int width_;
+    const int height_;
 
 };
 
@@ -2271,7 +2365,8 @@ void backwardPositiveWrapper(const int N,
 
 
 template <typename Dtype,
-          template <typename> class LossFunctorT>
+          template <typename> class LossFunctorT,
+          template <typename> class PixelwiseWeightingT>
 void backwardNegativeWrapper(const int N,
                              const int width,
                              const int height,
@@ -2282,7 +2377,8 @@ void backwardNegativeWrapper(const int N,
                              const Dtype negAlpha,
                              const LossFunctorT<Dtype> lossFunctor,
                              Dtype * gradA,
-                             Dtype * gradB);
+                             Dtype * gradB,
+                             PixelwiseWeightingT<Dtype> weighting);
 
 // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 //
@@ -2526,10 +2622,10 @@ public:
             if (positiveIndex > 0) {
                 caffe_sub(positiveIndex*repChannels,representationAData,representationPosBData,posDiffData);
                 for (int i=0; i<positiveIndex; ++i) {
-                    const Dtype weightA = pixelwiseWeighting.weightA(posSampleAData[0 + 2*i],
-                                                                     posSampleAData[1 + 2*i]);
-                    const Dtype weightB = pixelwiseWeighting.weightB(posSampleBData[0 + 2*i],
-                                                                     posSampleBData[1 + 2*i]);
+                    const Dtype weightA = pixelwiseWeighting.positiveWeightA(posSampleAData[0 + 2*i],
+                                                                             posSampleAData[1 + 2*i]);
+                    const Dtype weightB = pixelwiseWeighting.positiveWeightB(posSampleBData[0 + 2*i],
+                                                                             posSampleBData[1 + 2*i]);
                     const Dtype rawLoss = posLossFunctor_.loss(posDiffData + i*repChannels,repChannels);
 //                    std::cout << i << ": " << weightA << "*" << weightB << "*" << rawLoss <<
 //                                 "(" << posSampleAData[0 + 2*i] << ", " << posSampleAData[1 + 2*i] << " -- " <<
@@ -2579,7 +2675,15 @@ public:
 
                     Dtype * thisDiff = negDiffData + negativeIndex*repChannels;
 
-                    negLoss += negLossFunctor_.loss(thisDiff,repChannels);
+                    const Dtype weightA = pixelwiseWeighting.negativeWeightA(uA,vA);
+
+                    const Dtype weightB = pixelwiseWeighting.negativeWeightB(uBNeg,vBNeg);
+
+                    negLoss += weightA*weightB*negLossFunctor_.loss(thisDiff,repChannels);
+
+                    negLoss += 0.2*pixelwiseWeighting.regularityLoss(weightA);
+
+                    negLoss += 0.2*pixelwiseWeighting.regularityLoss(weightB);
 
                     ++negativeIndex;
 
@@ -2610,81 +2714,81 @@ public:
 
 //        std::cout << "backward cpu" << std::endl;
 
-        const int numPairs = bottom[0]->num();
+//        const int numPairs = bottom[0]->num();
 
-        const int repWidth = bottom[0]->width();
-        const int repHeight = bottom[0]->height();
-        const int repChannels = bottom[0]->channels();
+//        const int repWidth = bottom[0]->width();
+//        const int repHeight = bottom[0]->height();
+//        const int repChannels = bottom[0]->channels();
 
-        const Dtype posAlpha = top[0]->cpu_diff()[0]*balancingFunctor_.posAlpha();
-        const Dtype negAlpha = top[0]->cpu_diff()[0]*balancingFunctor_.negAlpha();
+//        const Dtype posAlpha = top[0]->cpu_diff()[0]*balancingFunctor_.posAlpha();
+//        const Dtype negAlpha = top[0]->cpu_diff()[0]*balancingFunctor_.negAlpha();
 
-        caffe_set(bottom[0]->count(),Dtype(0),bottom[0]->mutable_cpu_diff());
-        caffe_set(bottom[1]->count(),Dtype(0),bottom[1]->mutable_cpu_diff());
+//        caffe_set(bottom[0]->count(),Dtype(0),bottom[0]->mutable_cpu_diff());
+//        caffe_set(bottom[1]->count(),Dtype(0),bottom[1]->mutable_cpu_diff());
 
-        for (int pair = 0; pair < numPairs; ++pair) {
+//        for (int pair = 0; pair < numPairs; ++pair) {
 
-//            std::cout << "pair " << pair << std::endl;
+////            std::cout << "pair " << pair << std::endl;
 
-            const Dtype * posDiffData = diff_.mutable_cpu_data() + pair*diff_.count(1);
-            const Dtype * negDiffData = posDiffData + repChannels*positiveSelector_.totalPossibleMatches();
+//            const Dtype * posDiffData = diff_.mutable_cpu_data() + pair*diff_.count(1);
+//            const Dtype * negDiffData = posDiffData + repChannels*positiveSelector_.totalPossibleMatches();
 
-            const Dtype * posSampleAData = samplesA_.mutable_cpu_data() + pair*samplesA_.count(1);
-            const Dtype * negSampleAData = posSampleAData + 2*positiveSelector_.totalPossibleMatches();
+//            const Dtype * posSampleAData = samplesA_.mutable_cpu_data() + pair*samplesA_.count(1);
+//            const Dtype * negSampleAData = posSampleAData + 2*positiveSelector_.totalPossibleMatches();
 
-            const Dtype * posSampleBData = samplesB_.mutable_cpu_data() + pair*samplesB_.count(1);
-            const Dtype * negSampleBData = posSampleBData + 2*positiveSelector_.totalPossibleMatches();
+//            const Dtype * posSampleBData = samplesB_.mutable_cpu_data() + pair*samplesB_.count(1);
+//            const Dtype * negSampleBData = posSampleBData + 2*positiveSelector_.totalPossibleMatches();
 
-            Dtype * diffA = bottom[0]->mutable_cpu_diff() + pair*bottom[0]->count(1);
-            Dtype * diffB = bottom[1]->mutable_cpu_diff() + pair*bottom[1]->count(1);
+//            Dtype * diffA = bottom[0]->mutable_cpu_diff() + pair*bottom[0]->count(1);
+//            Dtype * diffB = bottom[1]->mutable_cpu_diff() + pair*bottom[1]->count(1);
 
-            PixelwiseWeightingT<Dtype> pixelwiseWeighting(bottom,pair,true);
+//            PixelwiseWeightingT<Dtype> pixelwiseWeighting(bottom,pair,true);
 
-            // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//            // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for positives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
-            std::cout << "positives" << std::endl;
-            for (int i = 0; i < this->nSuccessfulPositiveSamples_[pair]; ++i) {
+//            std::cout << "positives" << std::endl;
+//            for (int i = 0; i < this->nSuccessfulPositiveSamples_[pair]; ++i) {
 
-                const int uA = std::floor(posSampleAData[0 + 2*i] + 0.5);
-                const int vA = std::floor(posSampleAData[1 + 2*i] + 0.5);
-                const Dtype uB = posSampleBData[0 + 2*i];
-                const Dtype vB = posSampleBData[1 + 2*i];
+//                const int uA = std::floor(posSampleAData[0 + 2*i] + 0.5);
+//                const int vA = std::floor(posSampleAData[1 + 2*i] + 0.5);
+//                const Dtype uB = posSampleBData[0 + 2*i];
+//                const Dtype vB = posSampleBData[1 + 2*i];
 
-                const Dtype * thisDiff = posDiffData + i*repChannels;
+//                const Dtype * thisDiff = posDiffData + i*repChannels;
 
-                const Dtype weightA = pixelwiseWeighting.weightA(uA,vA);
-                const Dtype weightB = pixelwiseWeighting.weightB(uB,vB);
-                const Dtype thisAlpha = weightA*weightB*posAlpha;
+//                const Dtype weightA = pixelwiseWeighting.weightA(uA,vA);
+//                const Dtype weightB = pixelwiseWeighting.weightB(uB,vB);
+//                const Dtype thisAlpha = weightA*weightB*posAlpha;
 
-                posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
-                                                                                   uA,vA, thisAlpha,diffA);
-                posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
-                                                                                   uB,vB,-thisAlpha,diffB);
+//                posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
+//                                                                                   uA,vA, thisAlpha,diffA);
+//                posLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
+//                                                                                   uB,vB,-thisAlpha,diffB);
 
-                pixelwiseWeighting.template backpropWeightA<SingleThreadedAddition>(uA,vA,weightB*posLossFunctor_.loss(thisDiff,repChannels));
-                pixelwiseWeighting.template backpropWeightB<SingleThreadedAddition>(uB,vB,weightA*posLossFunctor_.loss(thisDiff,repChannels));
+//                pixelwiseWeighting.template backpropWeightA<SingleThreadedAddition>(uA,vA,weightB*posLossFunctor_.loss(thisDiff,repChannels));
+//                pixelwiseWeighting.template backpropWeightB<SingleThreadedAddition>(uB,vB,weightA*posLossFunctor_.loss(thisDiff,repChannels));
 
-            }
+//            }
 
-            std::cout << "negatives (" << this->nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
-            // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for negatives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-            for (int i = 0; i < this->nSuccessfulNegativeSamples_[pair]; ++i) {
+//            std::cout << "negatives (" << this->nSuccessfulNegativeSamples_[pair] << ")" << std::endl;
+//            // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for negatives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+//            for (int i = 0; i < this->nSuccessfulNegativeSamples_[pair]; ++i) {
 
-                const int uA = std::floor(negSampleAData[0 + 2*i] + 0.5);
-                const int vA = std::floor(negSampleAData[1 + 2*i] + 0.5);
-                const int uB = std::floor(negSampleBData[0 + 2*i] + 0.5);
-                const int vB = std::floor(negSampleBData[1 + 2*i] + 0.5);
+//                const int uA = std::floor(negSampleAData[0 + 2*i] + 0.5);
+//                const int vA = std::floor(negSampleAData[1 + 2*i] + 0.5);
+//                const int uB = std::floor(negSampleBData[0 + 2*i] + 0.5);
+//                const int vB = std::floor(negSampleBData[1 + 2*i] + 0.5);
 
-                const Dtype * thisDiff = negDiffData + i*repChannels;
+//                const Dtype * thisDiff = negDiffData + i*repChannels;
 
-                negLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
-                                                                                   uA,vA,negAlpha,diffA);
-                negLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
-                                                                                   uB,vB,-negAlpha,diffB);
+//                negLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
+//                                                                                   uA,vA,negAlpha,diffA);
+//                negLossFunctor_.template differentiateLoss<SingleThreadedAddition>(thisDiff,repWidth,repHeight,repChannels,
+//                                                                                   uB,vB,-negAlpha,diffB);
 
-            }
+//            }
 
-        }
+//        }
 
     }
 
@@ -2745,9 +2849,9 @@ public:
             // -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- gradients for negatives -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
             const int negN = this->nSuccessfulNegativeSamples_[pair];
 
-            backwardNegativeWrapper<Dtype,NegativeLossFunctorT>(
+            backwardNegativeWrapper<Dtype,NegativeLossFunctorT,PixelwiseWeightingT>(
                         negN,width,height,channels,negDiffData,negSampleAData,negSampleBData,
-                        negAlpha,negLossFunctor_,diffA,diffB);
+                        negAlpha,negLossFunctor_,diffA,diffB,pixelwiseWeighting);
 
         }
 
