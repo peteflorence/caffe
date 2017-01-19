@@ -2633,9 +2633,9 @@ public:
 
                     posLoss += weightA*weightB*rawLoss;
 
-                    posLoss += 0.2*pixelwiseWeighting.regularityLoss(weightA);
+                    posLoss += 0.1*pixelwiseWeighting.regularityLoss(weightA);
 
-                    posLoss += 0.2*pixelwiseWeighting.regularityLoss(weightB);
+                    posLoss += 0.1*pixelwiseWeighting.regularityLoss(weightB);
 //                    posLoss += sqrt(weightA*weightB)*rawLoss;
                 }
             }
@@ -2681,9 +2681,9 @@ public:
 
                     negLoss += weightA*weightB*negLossFunctor_.loss(thisDiff,repChannels);
 
-                    negLoss += 0.2*pixelwiseWeighting.regularityLoss(weightA);
+                    negLoss += 0.1*pixelwiseWeighting.regularityLoss(weightA);
 
-                    negLoss += 0.2*pixelwiseWeighting.regularityLoss(weightB);
+                    negLoss += 0.1*pixelwiseWeighting.regularityLoss(weightB);
 
                     ++negativeIndex;
 

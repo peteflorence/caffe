@@ -45,9 +45,9 @@ __global__ void DCLBackwardPositives(const int N,
 
 //        weighting.template backpropWeightB<CudaAtomicAddition>(uB,vB,posAlpha*weightA*lossFunctor.loss(thisDiff,channels));
 
-        weighting.template backpropPositiveWeightA<CudaAtomicAddition>(uA,vA,posAlpha*(weightB*lossFunctor.loss(thisDiff,channels) + 0.2*(Dtype(2)*weightA - Dtype(2))));
+        weighting.template backpropPositiveWeightA<CudaAtomicAddition>(uA,vA,posAlpha*(weightB*lossFunctor.loss(thisDiff,channels) + 0.1*(Dtype(2)*weightA - Dtype(2))));
 
-        weighting.template backpropPositiveWeightB<CudaAtomicAddition>(uB,vB,posAlpha*(weightA*lossFunctor.loss(thisDiff,channels) + 0.2*(Dtype(2)*weightB - Dtype(2))));
+        weighting.template backpropPositiveWeightB<CudaAtomicAddition>(uB,vB,posAlpha*(weightA*lossFunctor.loss(thisDiff,channels) + 0.1*(Dtype(2)*weightB - Dtype(2))));
 
 //        weighting.template backpropWeightA<CudaAtomicAddition>(uA,vA,posAlpha*weightB*0.5*(1/sqrt(weightA*weightB))*lossFunctor.loss(thisDiff,channels));
 
@@ -98,9 +98,9 @@ __global__ void DCLBackwardNegatives(const int N,
         lossFunctor.template differentiateLoss<CudaAtomicAddition>(thisDiff,width,height,channels,
                                                                    uB,vB,-thisAlpha,gradB);
 
-        weighting.template backpropNegativeWeightA<CudaAtomicAddition>(uA,vA,negAlpha*(weightB*lossFunctor.loss(thisDiff,channels) + 0.2*(Dtype(2)*weightA - Dtype(2))));
+        weighting.template backpropNegativeWeightA<CudaAtomicAddition>(uA,vA,negAlpha*(weightB*lossFunctor.loss(thisDiff,channels) + 0.1*(Dtype(2)*weightA - Dtype(2))));
 
-        weighting.template backpropNegativeWeightB<CudaAtomicAddition>(uB,vB,negAlpha*(weightA*lossFunctor.loss(thisDiff,channels) + 0.2*(Dtype(2)*weightB - Dtype(2))));
+        weighting.template backpropNegativeWeightB<CudaAtomicAddition>(uB,vB,negAlpha*(weightA*lossFunctor.loss(thisDiff,channels) + 0.1*(Dtype(2)*weightB - Dtype(2))));
 
     }
 
