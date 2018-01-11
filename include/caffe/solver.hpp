@@ -94,6 +94,14 @@ class Solver {
    */
   virtual inline const char* type() const { return ""; }
 
+  const std::vector<Dtype> & losses() const {
+      return losses_;
+  }
+
+  const Dtype smoothed_loss() const {
+      return smoothed_loss_;
+  }
+
  protected:
   // Make and apply the update value for the current iteration.
   virtual void ApplyUpdate() = 0;
